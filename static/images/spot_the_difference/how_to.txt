@@ -1,0 +1,5 @@
+run approve_coordinates.py
+select 2
+differences get detected and clustered
+A window opens to check each cluster if it is a correct detection
+When finished a file 'approved_coordinates.json' is created with the approved detections

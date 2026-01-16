@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Guesser - Game Display</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/display.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+    <style>
+        .list-group-item {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .card-header {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="display-body">
+    <div class="game-header">
+        <h1 class="game-title">Price Guesser</h1>
+        <div class="round-info" id="round-info">Waiting for question...</div>
+    </div>
+
+    <div class="container" style="padding: 2rem;">
+        <div class="row">
+            <div class="col-md-8">
+                <div id="product-container" class="text-center mb-4" style="display: none;">
+                    <img id="product-image" src="" alt="Product Image"
+                         style="max-width: 100%; max-height: 500px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                </div>
+                <div id="question-text" class="text-center" style="font-size: 1.5rem; font-weight: bold; color: #333; display: none;">
+                    Waiting for question...
+                </div>
+                <div id="price-display" class="text-center" style="font-size: 3rem; font-weight: bold; color: #28a745; margin-top: 2rem; display: none;">
+                </div>
+            </div>
+            <div class="col-md-4" style="display: none;">
+                <div class="card">
+                    <div class="card-header text-center" style="background-color: #28a745; color: white;">
+                        <h3 class="mb-0">Player Guesses</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="guesses-list" style="min-height: 100px;">
+                            <p class="text-muted text-center">No guesses yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden link for opening Amazon -->
+    <a href="#" id="amazon-link" target="_blank" style="display:none;"></a>
+
+    <script src="{{ url_for('static', filename='js/socket-utility.js') }}"></script>
+    <script>
+        // Initialize socket manager
+        const socket = SocketManager.init();
+        SocketManager.createStatusIndicator();
+
+        let playerGuesses = [];
+
+        // Socket event handlers
+        socket.on('connect', function() {
+            console.log('Display connected to server');
+
+            // Fetch initial game state to see if product is already selected
+            fetch('/api/game_state')
+                .then(response => response.json())
+                .then(state => {
+                    console.log('Initial game state:', state);
+                    console.log('game_data type:', typeof state.game_data);
+                    console.log('game_data value:', state.game_data);
+
+                    if (state.game_data) {
+                        const gameData = typeof state.game_data === 'string'
+                            ? JSON.parse(state.game_data)
+                            : state.game_data;
+
+                        console.log('Parsed gameData:', gameData);
+                        console.log('current_product:', gameData.current_product);
+
+                        if (gameData.current_product) {
+                            console.log('Product ASIN:', gameData.current_product.asin);
+
+                            // Product already selected, set it up but keep hidden initially
+                            const questionText = gameData.question_text || 'Guess the price!';
+                            document.getElementById('round-info').textContent = questionText;
+
+                            if (gameData.current_product.image_url) {
+                                document.getElementById('product-image').src = gameData.current_product.image_url;
+                                console.log('Image set to:', gameData.current_product.image_url);
+                            }
+
+                            // Set Amazon link but don't open yet
+                            if (gameData.current_product.asin) {
+                                const amazonUrl = `https://www.amazon.de/dp/${gameData.current_product.asin}`;
+                                const amazonLink = document.getElementById('amazon-link');
+                                amazonLink.href = amazonUrl;
+                                console.log('Amazon link set on connect:', amazonUrl);
+                            } else {
+                                console.warn('No ASIN in current_product');
+                            }
+
+                            // Keep everything hidden until admin reveals
+                            document.getElementById('product-container').style.display = 'none';
+                            document.getElementById('question-text').style.display = 'none';
+                            document.getElementById('price-display').style.display = 'none';
+                            document.querySelector('.col-md-4').style.display = 'none';
+                        } else {
+                            console.log('No current_product in gameData');
+                        }
+                    } else {
+                        console.log('No game_data in state');
+                    }
+                })
+                .catch(err => console.error('Error fetching game state:', err));
+        });
+
+        // Listen for question selected
+        socket.on('question_selected', function(data) {
+            console.log('Question selected:', data);
+
+            // Clear guesses for new question
+            playerGuesses = [];
+            updateGuessesList();
+
+            // Show ONLY category text at top
+            document.getElementById('round-info').textContent = data.question || 'Guess the price!';
+
+            // Hide ALL content (image, question text, price, guesses)
+            document.getElementById('product-container').style.display = 'none';
+            document.getElementById('question-text').style.display = 'none';
+            document.getElementById('price-display').style.display = 'none';
+            document.querySelector('.col-md-4').style.display = 'none'; // Hide sidebar
+        });
+
+        // Listen for PG question ready (when PG question selected from game board)
+        socket.on('pg_question_ready', function(data) {
+            console.log('PG question ready:', data);
+
+            // Clear guesses for new question
+            playerGuesses = [];
+            updateGuessesList();
+
+            // Show ONLY category text at top
+            document.getElementById('round-info').textContent = data.question_text || 'Guess the price!';
+
+            // Hide ALL content (image, question text, price, guesses)
+            document.getElementById('product-container').style.display = 'none';
+            document.getElementById('question-text').style.display = 'none';
+            document.getElementById('price-display').style.display = 'none';
+            document.querySelector('.col-md-4').style.display = 'none'; // Hide sidebar
+        });
+
+        // Listen for product data (from show_next_product - after scraping completes)
+        socket.on('display_open_amazon', function(data) {
+            console.log('[EVENT RECEIVED] display_open_amazon - Scraping complete!');
+            console.log('Product data:', data);
+            console.log('ASIN:', data.asin);
+            console.log('Image URL:', data.image_url);
+
+            // Restore product container HTML (replace loading message)
+            const productContainer = document.getElementById('product-container');
+            productContainer.innerHTML = '<img id="product-image" src="" alt="Product Image" style="max-width: 100%; max-height: 500px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">';
+
+            // Set product image and show it
+            if (data.image_url) {
+                document.getElementById('product-image').src = data.image_url;
+                console.log('[DISPLAY] Product image shown:', data.image_url);
+            } else {
+                console.warn('No image_url in product data');
+            }
+
+            // Open Amazon tab
+            if (data.asin) {
+                const amazonUrl = `https://www.amazon.de/dp/${data.asin}`;
+                const amazonLink = document.getElementById('amazon-link');
+                amazonLink.href = amazonUrl;
+                console.log('[DISPLAY] Opening Amazon tab:', amazonUrl);
+
+                setTimeout(() => {
+                    amazonLink.click();
+                    console.log('[DISPLAY] Amazon link clicked');
+                }, 100);
+            } else {
+                console.warn('No ASIN in product data');
+            }
+        });
+
+        // Listen for reveal question (show loading state, wait for scraping)
+        socket.on('reveal_question', function() {
+            console.log('[REVEAL] Admin clicked Show Content');
+
+            // Check if product is already loaded
+            const productImage = document.getElementById('product-image');
+            const amazonLink = document.getElementById('amazon-link');
+
+            if (productImage && productImage.src && amazonLink.href.includes('amazon.de/dp/')) {
+                // Product already loaded (admin clicked Show Content again)
+                console.log('[REVEAL] Product already loaded, just showing it');
+                document.getElementById('product-container').style.display = 'block';
+                document.querySelector('.col-md-4').style.display = 'block';
+            } else {
+                // First time - show loading state
+                console.log('[REVEAL] First reveal - showing loading state, waiting for scraping...');
+                const productContainer = document.getElementById('product-container');
+                productContainer.style.display = 'block';
+                productContainer.innerHTML = '<p style="text-align: center; font-size: 1.5rem; color: #666;">Loading product from Amazon...</p>';
+
+                // Show sidebar
+                document.querySelector('.col-md-4').style.display = 'block';
+
+                // Scraping happens now on server side (2-4 seconds)
+                // We'll receive display_open_amazon event when it's done
+                console.log('[REVEAL] Waiting for display_open_amazon event with product data...');
+            }
+        });
+
+        // Listen for player guesses
+        socket.on('player_price_guess', function(data) {
+            console.log('Player guess:', data);
+
+            // Add to guesses list
+            playerGuesses.push({
+                username: data.username,
+                guess: data.guess
+            });
+
+            updateGuessesList();
+        });
+
+        // Listen for results (shows price and winners)
+        socket.on('price_guesser_results', function(data) {
+            console.log('Results received:', data);
+
+            // Ensure image is visible
+            document.getElementById('product-container').style.display = 'block';
+            const productImage = document.getElementById('product-image');
+            if (productImage.src) {
+                productImage.style.display = 'block';
+            }
+
+            // Show the actual price
+            const priceDisplay = document.getElementById('price-display');
+            priceDisplay.textContent = `€${data.actual_price.toFixed(2)}`;
+            priceDisplay.style.display = 'block';
+
+            // Show sidebar with results
+            document.querySelector('.col-md-4').style.display = 'block';
+
+            // Update guesses list to show all results with winners highlighted
+            updateGuessesListWithResults(data.results, data.winners);
+        });
+
+        // Update guesses list display
+        function updateGuessesList() {
+            const listContainer = document.getElementById('guesses-list');
+
+            if (playerGuesses.length === 0) {
+                listContainer.innerHTML = '<p class="text-muted text-center">No guesses yet</p>';
+                return;
+            }
+
+            let html = '<div class="list-group">';
+            playerGuesses.forEach((guess) => {
+                html += `
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <strong>${guess.username}</strong>
+                        <span class="badge bg-primary rounded-pill">€${guess.guess.toFixed(2)}</span>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            listContainer.innerHTML = html;
+        }
+
+        // Update guesses list with results (show winners highlighted)
+        function updateGuessesListWithResults(results, winners) {
+            const listContainer = document.getElementById('guesses-list');
+
+            if (!results || results.length === 0) {
+                listContainer.innerHTML = '<p class="text-muted text-center">No guesses submitted</p>';
+                return;
+            }
+
+            const winnerUsernames = winners.map(w => w.username);
+
+            let html = '<div class="list-group">';
+            results.forEach((result, index) => {
+                const isWinner = winnerUsernames.includes(result.username);
+                const badgeColor = isWinner ? 'bg-warning text-dark' : 'bg-secondary';
+                const difference = result.difference.toFixed(2);
+
+                html += `
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${result.username}</strong>
+                            <br>
+                            <small class="text-muted">Difference: €${difference}</small>
+                        </div>
+                        <span class="badge ${badgeColor} rounded-pill">€${result.guess.toFixed(2)}</span>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            listContainer.innerHTML = html;
+        }
+
+        // Navigation handlers
+        socket.on('admin_display_goto_game_board', function() {
+            window.location.href = '/display';
+        });
+
+        socket.on('admin_display_goto_waiting_room', function() {
+            window.location.href = '/display';
+        });
+
+        socket.on('display_refresh', function() {
+            window.location.reload();
+        });
+
+        socket.on('game_started', function(data) {
+            console.log('Game started:', data.game);
+            window.location.href = '/display';
+        });
+    </script>
+</body>
+</html>

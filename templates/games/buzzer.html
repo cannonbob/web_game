@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Buzzer - Game Platform{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<style>
+    .buzzer-container {
+        min-height: 70vh;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .buzzer-card-body {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-around;
+        padding: 3rem 2rem;
+        text-align: center;
+    }
+    
+    .buzzer-status {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #333;
+        min-height: 4rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .buzzer-btn {
+        font-size: 3rem;
+        font-weight: bold;
+        padding: 2rem 4rem;
+        border-radius: 50%;
+        width: 200px;
+        height: 200px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        background-color: #dc3545;
+        border: none;
+        color: white;
+        transition: all 0.3s ease;
+    }
+    
+    .buzzer-btn:hover:not(.disabled) {
+        background-color: #c82333;
+        transform: scale(1.05);
+    }
+    
+    .buzzer-btn.disabled {
+        background-color: #6c757d;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+</style>
+
+<div class="card shadow buzzer-container">
+    <div class="card-header">
+        <h2 class="h4 mb-0">Buzzer</h2>
+    </div>
+    <div class="buzzer-card-body">
+        <div class="buzzer-status" id="buzzer-status">
+            <!-- Only shows player name when someone buzzes -->
+        </div>
+        
+        <button id="buzzer-btn" class="buzzer-btn disabled">
+            BUZZ
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Connect to socket.io
+const socket = io();
+
+// DOM elements
+const buzzerStatus = document.getElementById('buzzer-status');
+const buzzerBtn = document.getElementById('buzzer-btn');
+
+// Game variables
+let buzzerActive = false;
+let hasBuzzed = false;
+let currentBuzzedPlayer = null;
+
+// Socket event handlers
+socket.on('connect', function() {
+    console.log('Connected to Buzzer game');
+    // Buzzer will be activated when question data is received
+    buzzerStatus.textContent = 'Connecting...';
+    updateBuzzerButton();
+});
+
+// Handle reconnection - server sends forward_to_buzzer with current question data
+socket.on('forward_to_buzzer', function(data) {
+    console.log('Forwarded to buzzer (reconnection or initial):', data);
+    handleBuzzerQuestion(data);
+});
+
+// Handle new questions being selected
+socket.on('question_selected', function(data) {
+    console.log('Question selected:', data);
+    // Only handle if we're on buzzer page and it's a buzzer-type question
+    if (data.questionData) {
+        const questionType = data.questionData.question_type;
+        if (['text', 'image', 'audio', 'video', 'silhouette'].includes(questionType)) {
+            handleBuzzerQuestion(data);
+        }
+    }
+});
+
+// Function to handle buzzer question data
+function handleBuzzerQuestion(data) {
+    // Enable buzzer
+    buzzerActive = true;
+    hasBuzzed = false;
+    currentBuzzedPlayer = null;
+
+    // Clear status (just show buzzer is ready)
+    buzzerStatus.textContent = '';
+
+    updateBuzzerButton();
+    console.log('Buzzer ready for question:', data.question);
+}
+
+socket.on('buzzer_player_buzzed', function(data) {
+    buzzerActive = false;
+    currentBuzzedPlayer = data.username;
+    
+    if (data.username === localStorage.getItem('username')) {
+        hasBuzzed = true;
+        buzzerStatus.textContent = 'You buzzed first!';
+    } else {
+        buzzerStatus.textContent = `${data.username} buzzed first!`;
+    }
+    
+    updateBuzzerButton();
+    
+    // Play sound alert
+    playSound('buzz');
+});
+
+socket.on('buzzer_reset', function() {
+    buzzerActive = true;
+    hasBuzzed = false;
+    currentBuzzedPlayer = null;
+    
+    buzzerStatus.textContent = ''; // Clear the status, no initial message
+    
+    updateBuzzerButton();
+    
+    // Play sound alert
+    playSound('reset');
+});
+
+socket.on('buzzer_answer_correct', function(data) {
+    // Play sound alert
+    playSound('correct');
+});
+
+socket.on('buzzer_answer_wrong', function(data) {
+    // Play sound alert
+    playSound('wrong');
+});
+
+socket.on('buzzer_game_over', function(data) {
+    buzzerActive = false;
+    
+    buzzerStatus.textContent = `Game Over! Winner: ${data.winner}`;
+    
+    // Redirect to waiting room after delay
+    setTimeout(function() {
+        window.location.href = '/waiting_room';
+    }, 5000);
+});
+
+socket.on('return_to_game_board', function() {
+    // Return players to waiting room
+    window.location.href = '/waiting_room';
+});
+
+// Event listeners
+buzzerBtn.addEventListener('click', function() {
+    if (buzzerActive && !hasBuzzed) {
+        buzz();
+    }
+});
+
+// Function to buzz
+function buzz() {
+    socket.emit('buzzer_buzz');
+    
+    hasBuzzed = true;
+    updateBuzzerButton();
+}
+
+// Update buzzer button state
+function updateBuzzerButton() {
+    if (buzzerActive && !hasBuzzed) {
+        buzzerBtn.classList.remove('disabled');
+    } else {
+        buzzerBtn.classList.add('disabled');
+    }
+}
+
+
+// Play sound effects
+function playSound(type) {
+    let soundUrl;
+    
+    switch (type) {
+        case 'start':
+            soundUrl = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAAeAAAbPAAYGBgYJCQkJCQwMDAwMDw8PDw8SEhISEhUVFRUVGBgYGBgbGxsbGx4eHh4eISEhISEkJCQkJCcnJycnKioqKiourq6urq6urq6xsbGxsbS0tLS0t7e3t7e3t7e3t7e6urq6urq6urq6vb29vb2AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA//sQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
+            break;
+        case 'buzz':
+            soundUrl = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAAeAAAjMAAaGhoaIyMjIyMrKysrKzQ0NDQ0PT09PT1FRUVFRVhYWFhYYGBgYGBpaWlpaXJycnJyfHx8fHyFhYWFhY2NjY2NlpaWlpaenp6enqenp6enr6+vr6+3t7e3t8bGxsbGzs7Ozs7Ozs7OztbW1tbW3t7e3t7m5ubm5u7u7u7u9vb29vb+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+//sQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
+            break;
+        case 'reset':
+            soundUrl = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAAVAAAnEAAZGRkZJCQkJCQvLy8vLzk5OTk5RERERERFRUVERERERUVFRU9PT09PWVlZWVlkZGRkZG5ubm5ueHh4eHiCgoKCgoKCgoKCjIyMjIyWlpaWlqCgoKCgqqqqqqqpqampqampqamp6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr//sQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
+            break;
+        case 'correct':
+            soundUrl = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAAVAAA0mAAcHBwcKCgoKChERERERFRUVFRUampqampqampmZmZmZnZ2dnZ2hoaGhoaGhoaGhoaWlpaWlqampqamtra2trbDw8PDw8PDw8PDw9PT09PT4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy//sQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
+            break;
+        case 'wrong':
+            soundUrl = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAAVAAAkOAAbGxsbJiYmJiYyMjIyMj09PT09SUVFRUVFRUVFRUVPT09PT1paWlpaZWVlZWVwcHBwcHx8fHx8iIiIiIiTk5OTk5OTk5OTnZ2dnZ2oqKioqLOzs7Ozs7Ozs7Ozs7Ozs7O+vr6+vr6+vr6+vsbGxsbG0dHR0dHR0dHR0dHR0dHR0eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx//sQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
+            break;
+    }
+    
+    if (soundUrl) {
+        const audio = new Audio(soundUrl);
+        audio.play();
+    }
+}
+</script>
+{% endblock %}

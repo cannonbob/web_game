@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+
+{% block title %}Movie Guesser - Game Platform{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<style>
+    .input-container {
+        min-height: 70vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .input-card-body {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        padding: 2rem 2rem;
+    }
+
+    .question-display {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #333;
+        text-align: center;
+        margin-bottom: 1.5rem;
+        min-height: 4rem;
+    }
+
+    .answer-input-group {
+        max-width: 600px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    .answer-input {
+        font-size: 1.5rem;
+        padding: 1rem;
+        text-align: center;
+        border: 2px solid #007bff;
+        border-radius: 8px;
+    }
+
+    .answer-input:focus {
+        border-color: #0056b3;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+
+    .submit-btn {
+        font-size: 1.5rem;
+        font-weight: bold;
+        padding: 1rem 3rem;
+        margin-top: 1.5rem;
+        border-radius: 8px;
+        background-color: #28a745;
+        border: none;
+        color: white;
+        transition: all 0.3s ease;
+    }
+
+    .submit-btn:hover:not(:disabled) {
+        background-color: #218838;
+        transform: scale(1.05);
+    }
+
+    .submit-btn:disabled {
+        background-color: #6c757d;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+    .status-message {
+        text-align: center;
+        font-size: 1.2rem;
+        margin-top: 1.5rem;
+        min-height: 2rem;
+    }
+
+    .status-message.success {
+        color: #28a745;
+        font-weight: bold;
+    }
+
+    .status-message.error {
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    .status-message.info {
+        color: #17a2b8;
+    }
+
+    /* Autocomplete Dropdown Styles */
+    .autocomplete-container {
+        position: relative;
+    }
+
+    .autocomplete-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 2px solid #007bff;
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        max-height: 300px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+    }
+
+    .autocomplete-dropdown.show {
+        display: block;
+    }
+
+    .autocomplete-item {
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+        border-bottom: 1px solid #e9ecef;
+        transition: background-color 0.2s;
+    }
+
+    .autocomplete-item:last-child {
+        border-bottom: none;
+    }
+
+    .autocomplete-item:hover {
+        background-color: #e9ecef;
+    }
+
+    .autocomplete-item.selected {
+        background-color: #007bff;
+        color: white;
+    }
+
+    .autocomplete-loading {
+        padding: 0.75rem 1rem;
+        text-align: center;
+        color: #6c757d;
+        font-style: italic;
+    }
+
+    .autocomplete-no-results {
+        padding: 0.75rem 1rem;
+        text-align: center;
+        color: #6c757d;
+    }
+</style>
+
+<div class="card shadow input-container">
+    <div class="card-header">
+        <h2 class="h4 mb-0">Movie Guesser</h2>
+    </div>
+    <div class="input-card-body">
+        <div class="question-display" id="question-text">
+
+        </div>
+
+        <div class="answer-input-group" id="input-form" style="display: none;">
+            <div class="autocomplete-container">
+                <input
+                    type="text"
+                    id="answer-input"
+                    class="form-control answer-input"
+                    placeholder="Type movie name..."
+                    autocomplete="off"
+                />
+                <div id="autocomplete-dropdown" class="autocomplete-dropdown"></div>
+            </div>
+            <button id="submit-btn" class="btn submit-btn w-100">
+                Submit Guess
+            </button>
+        </div>
+
+        <div class="status-message" id="status-message"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Connect to socket.io
+const socket = io();
+
+// DOM elements
+const questionText = document.getElementById('question-text');
+const inputForm = document.getElementById('input-form');
+const answerInput = document.getElementById('answer-input');
+const submitBtn = document.getElementById('submit-btn');
+const statusMessage = document.getElementById('status-message');
+const autocompleteDropdown = document.getElementById('autocomplete-dropdown');
+
+// Game variables
+let currentQuestion = null;
+let currentItemIndex = 0;  // Track current screenshot index (0-based)
+let hasSubmitted = false;
+let hasWon = false;  // Track if player guessed correctly
+let highestRoundSeen = 0;  // Track the highest round reached (to block previous rounds)
+
+// Autocomplete variables
+let searchDebounceTimer = null;
+let movieSearchResults = [];
+let selectedMovieIndex = -1;
+let selectedMovieData = null;
+
+// Socket event handlers
+socket.on('connect', function() {
+    console.log('Connected to Movie Guesser');
+
+    // Reset for new question
+    hasWon = false;
+    highestRoundSeen = 0;  // Reset round tracking for new connection
+
+    // Load question data from sessionStorage (set by forward_to_movie_guesser event)
+    const storedData = sessionStorage.getItem('movieQuestionData');
+    if (storedData) {
+        const data = JSON.parse(storedData);
+        sessionStorage.removeItem('movieQuestionData'); // Clear it
+        console.log('Loaded question from sessionStorage:', data);
+        handleQuestionData(data);
+    } else {
+        setStatus('Connected. Waiting for game to start...', 'info');
+    }
+});
+
+// Handle reconnection - server sends forward_to_movie_guesser with current question data
+socket.on('forward_to_movie_guesser', function(data) {
+    console.log('Forwarded to movie guesser (reconnection or initial):', data);
+    // Reset for new question
+    hasWon = false;
+    highestRoundSeen = 0;
+    handleQuestionData(data);
+});
+
+// Movie guesser ready
+socket.on('movie_guesser_ready', function(data) {
+    console.log('Movie guesser ready:', data);
+    setStatus(data.message, 'info');
+});
+
+// Listen to question_selected event for movie questions (for updates/next items)
+socket.on('question_selected', function(data) {
+    console.log('Question selected:', data);
+    // Reset for new question
+    hasWon = false;
+    highestRoundSeen = 0;  // Reset round tracking for new question
+    handleQuestionData(data);
+});
+
+// Listen for item changes (next item)
+socket.on('item_changed', function(data) {
+    console.log('Item changed:', data);
+    handleQuestionData(data);
+});
+
+// Handle question data (extracted to function for reuse)
+function handleQuestionData(data) {
+    currentQuestion = data.questionData;
+    currentItemIndex = data.currentItemIndex || 0;  // Store current item index
+    const currentRound = currentItemIndex + 1;  // Rounds are 1-based
+
+    // Update highest round seen
+    if (currentRound > highestRoundSeen) {
+        highestRoundSeen = currentRound;
+    }
+
+    // Check if this is a previous round
+    const isPreviousRound = currentRound < highestRoundSeen;
+
+    hasSubmitted = false;  // Reset for new screenshot
+
+    // Show question
+    questionText.textContent = data.question || 'Guess the movie!';
+
+    // Show input form
+    inputForm.style.display = 'block';
+
+    // If player already won, keep form disabled
+    if (hasWon) {
+        answerInput.value = '';
+        answerInput.disabled = true;
+        submitBtn.disabled = true;
+        answerInput.placeholder = 'You already guessed correctly!';
+        setStatus('You guessed correctly! Wait for the next question.', 'success');
+    } else if (isPreviousRound) {
+        // Block input for previous rounds
+        answerInput.value = '';
+        answerInput.disabled = true;
+        submitBtn.disabled = true;
+        answerInput.placeholder = 'Cannot submit for previous rounds';
+        setStatus('This is a previous round. Input blocked.', 'info');
+    } else {
+        // Enable form for new screenshot
+        answerInput.value = '';
+        answerInput.disabled = false;
+        submitBtn.disabled = false;
+        answerInput.placeholder = 'Type movie name...';
+
+        // Clear autocomplete state
+        hideAutocomplete();
+        selectedMovieData = null;
+
+        setStatus('Type a movie name to search!', 'info');
+    }
+}
+
+// Movie search results
+socket.on('movie_search_results', function(results) {
+    console.log('Movie search results:', results);
+    movieSearchResults = results;
+    selectedMovieIndex = -1;
+    displayAutocomplete(results);
+});
+
+// Autocomplete input handler with debounce
+answerInput.addEventListener('input', function(e) {
+    const query = e.target.value.trim();
+
+    // Clear previous timer
+    if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
+    }
+
+    // Hide dropdown if query is too short
+    if (query.length < 2) {
+        hideAutocomplete();
+        selectedMovieData = null;
+        return;
+    }
+
+    // Set new timer for 600ms debounce
+    searchDebounceTimer = setTimeout(() => {
+        // Show loading state
+        autocompleteDropdown.innerHTML = '<div class="autocomplete-loading">Searching...</div>';
+        autocompleteDropdown.classList.add('show');
+
+        // Emit search request
+        console.log('Emitting search_movies:', query);
+        socket.emit('search_movies', { query: query });
+    }, 600);
+});
+
+// Handle keyboard navigation in dropdown
+answerInput.addEventListener('keydown', function(e) {
+    if (!autocompleteDropdown.classList.contains('show') || movieSearchResults.length === 0) {
+        return;
+    }
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedMovieIndex = Math.min(selectedMovieIndex + 1, movieSearchResults.length - 1);
+        updateDropdownSelection();
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedMovieIndex = Math.max(selectedMovieIndex - 1, -1);
+        updateDropdownSelection();
+    } else if (e.key === 'Enter' && selectedMovieIndex >= 0) {
+        e.preventDefault();
+        selectMovie(movieSearchResults[selectedMovieIndex]);
+    } else if (e.key === 'Escape') {
+        hideAutocomplete();
+    }
+});
+
+// Click outside to close dropdown
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.autocomplete-container')) {
+        hideAutocomplete();
+    }
+});
+
+// Helper function to display autocomplete dropdown
+function displayAutocomplete(results) {
+    if (results.length === 0) {
+        autocompleteDropdown.innerHTML = '<div class="autocomplete-no-results">No movies found</div>';
+        autocompleteDropdown.classList.add('show');
+        return;
+    }
+
+    let html = '';
+    results.forEach((movie, index) => {
+        html += `<div class="autocomplete-item" data-index="${index}">${movie.display}</div>`;
+    });
+
+    autocompleteDropdown.innerHTML = html;
+    autocompleteDropdown.classList.add('show');
+
+    // Add click handlers to items
+    autocompleteDropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const index = parseInt(this.getAttribute('data-index'));
+            selectMovie(movieSearchResults[index]);
+        });
+    });
+}
+
+// Helper function to update dropdown selection highlight
+function updateDropdownSelection() {
+    const items = autocompleteDropdown.querySelectorAll('.autocomplete-item');
+    items.forEach((item, index) => {
+        if (index === selectedMovieIndex) {
+            item.classList.add('selected');
+            item.scrollIntoView({ block: 'nearest' });
+        } else {
+            item.classList.remove('selected');
+        }
+    });
+}
+
+// Helper function to select a movie from dropdown
+function selectMovie(movie) {
+    answerInput.value = movie.display;
+    selectedMovieData = movie;
+    hideAutocomplete();
+}
+
+// Helper function to hide autocomplete dropdown
+function hideAutocomplete() {
+    autocompleteDropdown.classList.remove('show');
+    autocompleteDropdown.innerHTML = '';
+    movieSearchResults = [];
+    selectedMovieIndex = -1;
+}
+
+// Handle answer submission
+submitBtn.addEventListener('click', function() {
+    if (!currentQuestion || hasSubmitted) return;
+
+    const answer = answerInput.value.trim();
+    if (!answer) {
+        setStatus('Please enter a movie name!', 'error');
+        return;
+    }
+
+    // Use actual movie title if selected from autocomplete, otherwise use typed text
+    const submittedAnswer = selectedMovieData ? selectedMovieData.title : answer;
+
+    // Submit answer via socket (round is 1-based: currentItemIndex + 1)
+    socket.emit('submit_answer', {
+        question_id: currentQuestion.id,
+        answer: submittedAnswer,
+        round: currentItemIndex + 1,
+        movie_id: selectedMovieData ? selectedMovieData.id : null
+    });
+
+    hasSubmitted = true;
+    answerInput.disabled = true;
+    submitBtn.disabled = true;
+    setStatus('Answer submitted! Waiting for results...', 'success');
+});
+
+// Answer submission confirmed
+socket.on('answer_submitted', function(data) {
+    console.log('Answer submission confirmed:', data);
+    if (data.success) {
+        if (data.is_correct) {
+            // Player guessed correctly!
+            hasWon = true;  // Set flag to keep form disabled
+            answerInput.disabled = true;
+            submitBtn.disabled = true;
+            answerInput.placeholder = 'You already guessed correctly!';
+            setStatus('Correct! You guessed the movie!', 'success');
+        } else {
+            // Wrong answer, but recorded
+            setStatus('Answer recorded. Try again next round!', 'info');
+        }
+    } else {
+        setStatus(data.message || 'Error submitting answer', 'error');
+        hasSubmitted = false;
+        answerInput.disabled = false;
+        submitBtn.disabled = false;
+    }
+});
+
+// Allow Enter key to submit (if not navigating dropdown)
+answerInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && !submitBtn.disabled && selectedMovieIndex < 0) {
+        submitBtn.click();
+    }
+});
+
+// Navigation listeners
+socket.on('return_to_game_board', function() {
+    // Return players to waiting room
+    window.location.href = '/waiting_room';
+});
+
+socket.on('admin_players_goto_waiting_room', function() {
+    // Navigate to waiting room
+    window.location.href = '/waiting_room';
+});
+
+socket.on('admin_players_goto_game_board', function() {
+    // Navigate to waiting room (players don't go to game board directly)
+    window.location.href = '/waiting_room';
+});
+
+// Helper function to set status message
+function setStatus(message, type) {
+    statusMessage.textContent = message;
+    statusMessage.className = 'status-message ' + type;
+}
+</script>
+{% endblock %}

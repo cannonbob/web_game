@@ -1,0 +1,41 @@
+{
+  "approved_coordinates": [
+    {
+      "id": 2,
+      "x": 1376,
+      "y": 195,
+      "width": 602,
+      "height": 801,
+      "area": 375452,
+      "center_x": 1672,
+      "center_y": 581
+    },
+    {
+      "id": 4,
+      "x": 2488,
+      "y": 978,
+      "width": 47,
+      "height": 45,
+      "area": 1696,
+      "center_x": 2511,
+      "center_y": 1000
+    },
+    {
+      "id": 5,
+      "x": 1389,
+      "y": 1234,
+      "width": 320,
+      "height": 460,
+      "area": 113821,
+      "center_x": 1546,
+      "center_y": 1453
+    }
+  ],
+  "total_approved": 3,
+  "original_count": 18,
+  "rejection_count": 15,
+  "image_paths": {
+    "original": "anne.png",
+    "modified": "anne_bling.png"
+  }
+}

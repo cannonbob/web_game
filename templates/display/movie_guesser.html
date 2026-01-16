@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Guesser - Game Display</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/display.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+    <style>
+        .list-group-item {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .card-header {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="display-body">
+    <div class="game-header">
+        <h1 class="game-title">Movie Guesser</h1>
+        <div class="round-info" id="round-info">Screenshot 1</div>
+    </div>
+
+    <div class="container" style="padding: 2rem;">
+        <div class="row">
+            <div class="col-md-8">
+                <div id="screenshot-container" class="text-center mb-4">
+                    <img id="screenshot-image" src="" alt="Movie Screenshot"
+                         style="max-width: 100%; max-height: 500px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                </div>
+                <div id="question-text" class="text-center" style="font-size: 1.5rem; font-weight: bold; color: #333;">
+                    Waiting for question...
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header" style="background-color: #28a745; color: white;">
+                        <h3 class="mb-0">Correct Guesses</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="correct-guesses-list" style="min-height: 100px;">
+                            <p class="text-muted text-center">No correct guesses yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/socket-utility.js') }}"></script>
+    <script>
+        // Initialize socket manager
+        const socket = SocketManager.init();
+        SocketManager.createStatusIndicator();
+
+        let currentScreenshot = 1;
+        let totalScreenshots = 1;
+        let correctGuesses = [];  // Track correct guesses: {username, round}
+
+        // Socket event handlers
+        socket.on('connect', function() {
+            console.log('Display connected to server');
+        });
+
+        socket.on('movie_guesser_ready', function(data) {
+            console.log('Movie guesser ready:', data);
+            document.getElementById('question-text').textContent = data.message || 'Ready to start!';
+        });
+
+        // Listen for question selected
+        socket.on('question_selected', function(data) {
+            console.log('Question selected:', data);
+
+            // Clear correct guesses for new question
+            correctGuesses = [];
+            updateCorrectGuessesList();
+
+            // Show screenshot if available
+            if (data.questionData && data.questionData.media_url) {
+                document.getElementById('screenshot-image').src = data.questionData.media_url;
+                document.getElementById('screenshot-container').style.display = 'block';
+            }
+
+            // Show question text
+            document.getElementById('question-text').textContent = data.question || 'Guess the movie!';
+
+            // Update screenshot counter if multi-item
+            if (data.totalItems) {
+                totalScreenshots = data.totalItems;
+                currentScreenshot = (data.currentItemIndex || 0) + 1;
+                document.getElementById('round-info').textContent = `Screenshot ${currentScreenshot}/${totalScreenshots}`;
+            }
+        });
+
+        // Listen for item changes (next screenshot)
+        socket.on('item_changed', function(data) {
+            console.log('Item changed:', data);
+            currentScreenshot = (data.currentItemIndex || 0) + 1;
+            totalScreenshots = data.totalItems || 1;
+            document.getElementById('round-info').textContent = `Screenshot ${currentScreenshot}/${totalScreenshots}`;
+        });
+
+        // Listen for correct guesses
+        socket.on('player_guessed_correct', function(data) {
+            console.log('Player guessed correct:', data);
+
+            // Add to correct guesses list
+            correctGuesses.push({
+                username: data.username,
+                round: data.round,
+                answer: data.answer
+            });
+
+            // Update display
+            updateCorrectGuessesList();
+        });
+
+        // Calculate points based on round number
+        function calculatePoints(round) {
+            if (round === 1) return 3;
+            if (round === 2 || round === 3) return 2;
+            if (round === 4 || round === 5) return 1;
+            return 0;
+        }
+
+        // Update correct guesses list display
+        function updateCorrectGuessesList() {
+            const listContainer = document.getElementById('correct-guesses-list');
+
+            if (correctGuesses.length === 0) {
+                listContainer.innerHTML = '<p class="text-muted text-center">No correct guesses yet</p>';
+                return;
+            }
+
+            // Sort by round (earliest first)
+            correctGuesses.sort((a, b) => a.round - b.round);
+
+            let html = '<div class="list-group">';
+            correctGuesses.forEach((guess, index) => {
+                const badgeColor = index === 0 ? 'bg-warning text-dark' : 'bg-secondary';
+                const points = calculatePoints(guess.round);
+
+                html += `
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${guess.username}</strong>
+                            <br>
+                            <small class="text-muted">${guess.answer}</small>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge ${badgeColor} rounded-pill">Round ${guess.round}</span>
+                            <br>
+                            <small class="text-muted">+${points} point${points !== 1 ? 's' : ''}</small>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            listContainer.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

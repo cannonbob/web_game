@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoGuessr - Game Display</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/display.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+</head>
+<body class="display-body">
+    <div class="game-header">
+        <h1 class="game-title">GeoGuessr</h1>
+    </div>
+    
+    <div id="location-container" class="location-container">
+        <div class="image-section">
+            <div class="info-section">
+                <h2 id="location-name" class="location-name d-none"></h2>
+            </div>
+            <img id="location-image" class="location-image d-none" src="" alt="Location Image">
+        </div>
+        <div class="results-table-section">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Player</th>
+                        <th>Distance</th>
+                        <th>Points</th>
+                    </tr>
+                </thead>
+                <tbody id="results-table-body-inline">
+                </tbody>
+            </table>
+        </div>
+        <div class="results-map-section">
+            <div id="results-map-inline" class="results-map"></div>
+        </div>
+    </div>
+    
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='js/socket-utility.js') }}"></script>
+    <script>
+        // Game variables
+        let inlineResultsMap = null;
+        
+        // Initialize socket manager
+        const socket = SocketManager.init();
+        SocketManager.createStatusIndicator();
+        
+        // Socket event handlers
+        socket.on('connect', function() {
+            console.log('Display connected to server');
+        });
+
+        socket.on('geo_guessr_show_location', function(data) {
+            console.log('geo_guessr_show_location received:', data);
+
+            // Show location image
+            const imageElement = document.getElementById('location-image');
+            // Check if image_url contains a path or just a filename
+            if (data.image_url.includes('/') || data.image_url.startsWith('http')) {
+                // Use the full path/URL directly (question mode with media_url)
+                imageElement.src = data.image_url;
+            } else {
+                // Construct path from filename (standalone game mode)
+                imageElement.src = `/static/images/locations/${data.image_url}`;
+            }
+            imageElement.alt = data.location_name;
+            imageElement.classList.remove('d-none');
+
+            // Hide location name (will be shown only during results)
+            const nameElement = document.getElementById('location-name');
+            nameElement.textContent = data.location_name;
+            nameElement.classList.add('d-none');
+
+            // Switch to fullscreen mode for maximum image size
+            const container = document.getElementById('location-container');
+            container.className = 'location-container fullscreen-mode';
+
+        });
+        
+        socket.on('geo_guessr_show_results', function(data) {
+            console.log('geo_guessr_show_results received:', data);
+            
+            // Switch to results mode for side-by-side layout
+            const container = document.getElementById('location-container');
+            container.className = 'location-container results-mode';
+            
+            // Show location name now that results are being displayed
+            document.getElementById('location-name').classList.remove('d-none');
+            
+            // Create or clear the inline map
+            if (!inlineResultsMap) {
+                // Delay map initialization to ensure container is fully visible
+                setTimeout(() => {
+                    initializeInlineResultsMap();
+                    // Additional delay to ensure map is fully initialized
+                    setTimeout(() => {
+                        addInlineResultsMarkers(data);
+                    }, 200);
+                }, 900); // Wait for container animation to complete
+            } else {
+                clearInlineResultsMap();
+                // Force map resize when switching to results mode
+                setTimeout(() => {
+                    inlineResultsMap.invalidateSize();
+                    // Additional delay to ensure map is properly resized
+                    setTimeout(() => {
+                        addInlineResultsMarkers(data);
+                    }, 200);
+                }, 900);
+            }
+            
+            // Populate inline results table
+            populateInlineResultsTable(data);
+            
+        });
+        
+        socket.on('geo_guessr_game_over', function(data) {
+            console.log('Game over, redirecting to display');
+            // Redirect to game board
+            window.location.href = '/display';
+        });
+        
+        
+        // Initialize the inline results map
+        function initializeInlineResultsMap() {
+            inlineResultsMap = L.map('results-map-inline').setView([0, 0], 2);
+            
+            L.tileLayer('https://api.maptiler.com/maps/streets/{z}/{x}/{y}.png?key=Md2cWfkcJofuoQI8NXb9', {
+                maxZoom: 18
+            }).addTo(inlineResultsMap);
+            
+            // Force map to resize after container becomes visible
+            setTimeout(() => {
+                inlineResultsMap.invalidateSize();
+            }, 100);
+        }
+        
+        
+        // Clear existing markers from the inline map
+        function clearInlineResultsMap() {
+            inlineResultsMap.eachLayer(function(layer) {
+                if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                    inlineResultsMap.removeLayer(layer);
+                }
+            });
+        }
+        
+        
+        // Add markers for the inline location and player guesses
+        function addInlineResultsMarkers(data) {
+            // Add location marker
+            const locationIcon = L.icon({
+                iconUrl: 'https://cdn0.iconfinder.com/data/icons/small-n-flat/24/678111-map-marker-512.png',
+                iconSize: [24, 24],
+                iconAnchor: [12, 24],
+                popupAnchor: [0, -24]
+            });
+            
+            const locationMarker = L.marker([data.location.latitude, data.location.longitude], {
+                icon: locationIcon
+            }).addTo(inlineResultsMap);
+            
+            locationMarker.bindPopup(`<strong>${data.location.name}</strong>`);
+            
+            // Collect all coordinates for proper bounds calculation
+            const allCoordinates = [[data.location.latitude, data.location.longitude]];
+            
+            // Add player markers and collect their coordinates
+            data.players.forEach((player, index) => {
+                // Add player coordinates to our collection
+                allCoordinates.push([player.latitude, player.longitude]);
+                const playerIcon = L.divIcon({
+                    className: 'player-marker-icon',
+                    html: `<div class="player-marker" style="background-color: hsl(${index * 30}, 70%, 50%); width: 20px; height: 20px; font-size: 10px;">${index + 1}</div>`,
+                    iconSize: [20, 20]
+                });
+                
+                const playerMarker = L.marker([player.latitude, player.longitude], {
+                    icon: playerIcon
+                }).addTo(inlineResultsMap);
+                
+                playerMarker.bindPopup(`<strong>${player.username}</strong><br>Distance: ${player.distance.toFixed(2)} km`);
+                
+                // Draw line between player guess and actual location
+                const line = L.polyline([
+                    [player.latitude, player.longitude],
+                    [data.location.latitude, data.location.longitude]
+                ], {
+                    color: `hsl(${index * 30}, 70%, 50%)`,
+                    dashArray: '5, 10',
+                    weight: 2
+                }).addTo(inlineResultsMap);
+            });
+            
+            // Create bounds from all collected coordinates
+            const bounds = L.latLngBounds(allCoordinates);
+            console.log('Inline bounds created from coordinates:', allCoordinates);
+            
+            // Fit map to bounds with improved zoom calculation
+            setTimeout(() => {
+                // Force map to recognize its new size
+                inlineResultsMap.invalidateSize();
+                
+                // Wait a bit more for the invalidateSize to take effect
+                setTimeout(() => {
+                    const mapContainer = inlineResultsMap.getContainer();
+                    console.log('Inline map container size:', mapContainer.offsetWidth, 'x', mapContainer.offsetHeight);
+                    console.log('Inline bounds:', bounds.toBBoxString());
+                    
+                    // Check if bounds are valid
+                    if (bounds.isValid()) {
+                        // Calculate optimal padding based on bounds size
+                        const boundsNE = bounds.getNorthEast();
+                        const boundsSW = bounds.getSouthWest();
+                        const boundsWidth = Math.abs(boundsNE.lng - boundsSW.lng);
+                        const boundsHeight = Math.abs(boundsNE.lat - boundsSW.lat);
+                        const boundsSize = Math.max(boundsWidth, boundsHeight);
+                        
+                        // Dynamic padding: smaller for distant points, larger for close points
+                        let padding;
+                        if (boundsSize > 10) { // Very far apart (>10 degrees)
+                            padding = 15; // Slightly less padding for inline map
+                        } else if (boundsSize > 1) { // Moderately far (1-10 degrees)
+                            padding = 30;
+                        } else if (boundsSize > 0.1) { // Close (0.1-1 degrees)
+                            padding = 50;
+                        } else { // Very close (<0.1 degrees)
+                            padding = 70;
+                        }
+                        
+                        console.log('Inline bounds size:', boundsSize, 'degrees, using padding:', padding);
+                        
+                        // Fit bounds without artificial zoom restrictions
+                        inlineResultsMap.fitBounds(bounds, {
+                            padding: [padding, padding],
+                            maxZoom: 18 // Use natural max zoom of tile layer
+                        });
+                        
+                        // Apply reasonable zoom limits only if necessary
+                        setTimeout(() => {
+                            const currentZoom = inlineResultsMap.getZoom();
+                            console.log('Inline current zoom after fitBounds:', currentZoom);
+                            
+                            // Only limit zoom if it's extremely high (city-block level)
+                            if (currentZoom > 16) {
+                                console.log('Inline zoom very high, adjusting to 16');
+                                inlineResultsMap.setZoom(16);
+                            }
+                            // Ensure minimum zoom for very distant points
+                            else if (currentZoom < 2) {
+                                console.log('Inline zoom too low, adjusting to 2');
+                                inlineResultsMap.setZoom(2);
+                            }
+                        }, 100);
+                    } else {
+                        console.log('Invalid inline bounds, using default view');
+                        inlineResultsMap.setView([data.location.latitude, data.location.longitude], 8);
+                    }
+                }, 150);
+            }, 50);
+        }
+        
+        
+        // Populate the inline results table
+        function populateInlineResultsTable(data) {
+            const tableBody = document.getElementById('results-table-body-inline');
+            tableBody.innerHTML = '';
+            
+            // Sort players by distance (ascending)
+            data.players.sort((a, b) => a.distance - b.distance);
+            
+            data.players.forEach((player, index) => {
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${player.username}</td>
+                    <td>${player.distance.toFixed(2)} km</td>
+                    <td>${player.points}</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+
+        // Admin navigation event listeners
+        socket.on('admin_display_goto_game_board', function() {
+            console.log('Admin navigation: goto game board');
+            window.location.href = '/display';
+        });
+
+        socket.on('admin_display_goto_waiting_room', function() {
+            console.log('Admin navigation: goto waiting room');
+            window.location.href = '/display';
+        });
+
+        // Display refresh event listeners
+        socket.on('display_refresh', function() {
+            console.log('Display refresh event received');
+            window.location.reload();
+        });
+
+        socket.on('admin_refresh_display', function() {
+            console.log('Admin refresh display event received');
+            window.location.reload();
+        });
+    </script>
+</body>
+</html>

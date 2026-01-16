@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Waiting Room - Game Platform{% endblock %}
+
+{% block content %}
+<div class="card shadow">
+    <div class="card-header">
+        <h2 class="h4 mb-0">Waiting Room</h2>
+    </div>
+    <div class="card-body">
+        <div class="list-group" id="player-list">
+            {% for user in users %}
+            {% if user.username != 'admin' %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <span>{{ user.username }}</span>
+                <span class="fs-4 fw-bold text-primary">{{ user.overall_score }}</span>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<!-- Load Socket utility after Socket.IO is loaded -->
+<script src="{{ url_for('static', filename='js/socket-utility.js') }}"></script>
+<script>
+    // Initialize socket manager with debugging
+    const socket = SocketManager.init();
+    SocketManager.createStatusIndicator();
+    SocketManager.debug.init();
+
+    socket.on('connect', function () {
+        console.log('Connected to server');
+    });
+
+    socket.on('user_joined', function (data) {
+        updatePlayerList();
+    });
+
+    socket.on('user_left', function (data) {
+        updatePlayerList();
+    });
+
+    socket.on('game_started', function (data) {
+        window.location.href = `/game/${data.game}`;
+    });
+
+    socket.on('forward_to_buzzer', function (data) {
+        // Forward players to buzzer interface when a question is selected
+        window.location.href = '/game/buzzer';
+    });
+
+    socket.on('forward_to_input', function (data) {
+        // Forward players to question input interface for input questions
+        window.location.href = '/game/question_input';
+    });
+
+    socket.on('forward_to_top_5', function (data) {
+        // Forward players to Top 5 auto-complete interface
+        window.location.href = '/game/top_5';
+    });
+
+    socket.on('forward_to_movie_guesser', function (data) {
+        // Forward players to movie guesser interface and store question data
+        sessionStorage.setItem('movieQuestionData', JSON.stringify(data));
+        window.location.href = '/game/movie_guesser';
+    });
+
+    socket.on('forward_to_ordering_game', function (data) {
+        // Forward players to ordering game interface and store question data
+        sessionStorage.setItem('orderingQuestionData', JSON.stringify(data));
+        window.location.href = '/game/ordering_game';
+    });
+
+    socket.on('forward_to_price_guesser', function (data) {
+        // Forward players to price guesser interface and store question data
+        sessionStorage.setItem('priceGuesserQuestionData', JSON.stringify(data));
+        window.location.href = '/game/price_guesser';
+    });
+
+    socket.on('forward_to_sorting_game', function (data) {
+        // Forward players to sorting game interface and store question data
+        sessionStorage.setItem('sortingGameQuestionData', JSON.stringify(data));
+        window.location.href = '/game/sorting_game';
+    });
+
+    socket.on('forward_to_geo_guessr', function (data) {
+        // Forward players to geo_guessr interface when a geo question is selected
+        window.location.href = '/game/geo_guessr';
+    });
+
+    socket.on('forward_to_match_me', function (data) {
+        // Forward players to match_me interface when a match me question is selected
+        window.location.href = '/game/match_me';
+    });
+
+    socket.on('redirect_to_page', function (data) {
+        // Redirect players to specified page
+        window.location.href = data.url;
+    });
+
+    socket.on('return_to_game_board', function () {
+        // Return players to waiting room
+        window.location.href = '/waiting_room';
+    });
+
+    socket.on('admin_players_goto_waiting_room', function () {
+        // Admin clicked "Waiting Room" button - ensure we're on waiting room page
+        window.location.href = '/waiting_room';
+    });
+
+    function updatePlayerList() {
+        fetch('/api/users')
+            .then(response => response.json())
+            .then(users => {
+                const playerList = document.getElementById('player-list');
+                playerList.innerHTML = '';
+
+                // Sort users by score (descending) then alphabetically
+                const sortedUsers = users.filter(user => user.username !== 'admin')
+                    .sort((a, b) => {
+                        if (b.overall_score !== a.overall_score) {
+                            return b.overall_score - a.overall_score;
+                        }
+                        return a.username.localeCompare(b.username);
+                    });
+
+                sortedUsers.forEach(user => {
+                    const item = document.createElement('div');
+                    item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    item.innerHTML = `
+                        <span>${user.username}</span>
+                        <span class="fs-4 fw-bold text-primary">${user.overall_score}</span>
+                    `;
+                    playerList.appendChild(item);
+                });
+            });
+    }
+</script>
+{% endblock %}

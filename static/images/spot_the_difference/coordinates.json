@@ -1,0 +1,39 @@
+{
+  "image_file": "anne_bling.png",
+  "image_dimensions": {
+    "width": 1000,
+    "height": 750
+  },
+  "differences": [
+    {
+      "id": 3,
+      "shape": "rectangle",
+      "coordinates": {
+        "x1": 372.0,
+        "y1": 53.0,
+        "x2": 476.0,
+        "y2": 226.0
+      }
+    },
+    {
+      "id": 5,
+      "shape": "circle",
+      "coordinates": {
+        "center_x": 627.0,
+        "center_y": 250.0,
+        "radius": 7.810249675906654
+      }
+    },
+    {
+      "id": 7,
+      "shape": "ellipse",
+      "coordinates": {
+        "center_x": 293.5,
+        "center_y": 440.0,
+        "radius_x": 17.5,
+        "radius_y": 8.0,
+        "rotation": 0
+      }
+    }
+  ]
+}

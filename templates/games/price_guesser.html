@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Price Guesser - Game Platform{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<style>
+    .input-container {
+        min-height: 70vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .input-card-body {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        padding: 2rem 2rem;
+    }
+
+    .answer-input-group {
+        max-width: 600px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    .price-input {
+        font-size: 1.5rem;
+        padding: 1rem;
+        text-align: center;
+        border: 2px solid #007bff;
+        border-radius: 8px;
+    }
+
+    .price-input:focus {
+        border-color: #0056b3;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+
+    .submit-btn {
+        font-size: 1.5rem;
+        font-weight: bold;
+        padding: 1rem 3rem;
+        margin-top: 1.5rem;
+        border-radius: 8px;
+        background-color: #28a745;
+        border: none;
+        color: white;
+        transition: all 0.3s ease;
+    }
+
+    .submit-btn:hover:not(:disabled) {
+        background-color: #218838;
+        transform: scale(1.05);
+    }
+
+    .submit-btn:disabled {
+        background-color: #6c757d;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+    .status-message {
+        text-align: center;
+        font-size: 1.2rem;
+        margin-top: 1.5rem;
+        min-height: 2rem;
+    }
+
+    .status-message.success {
+        color: #28a745;
+        font-weight: bold;
+    }
+
+    .status-message.error {
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    .status-message.info {
+        color: #17a2b8;
+    }
+</style>
+
+<div class="container mt-4 input-container">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="h4 mb-0">Price Guesser</h2>
+        </div>
+        <div class="card-body input-card-body">
+            <div class="question-display" id="question-text" style="font-size: 1.5rem; font-weight: bold; color: #333; text-align: center; margin-bottom: 1.5rem;">
+                Loading question...
+            </div>
+
+            <div class="answer-input-group">
+                <input type="number"
+                       class="form-control price-input"
+                       id="price-input"
+                       placeholder="Enter your guess"
+                       step="0.01"
+                       min="0"
+                       autocomplete="off"
+                       autofocus>
+                <button id="submit-guess" class="btn submit-btn w-100">
+                    Submit Guess
+                </button>
+                <div class="status-message" id="status-message"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/socket-utility.js') }}"></script>
+<script>
+    const socket = SocketManager.init();
+    SocketManager.createStatusIndicator();
+
+    let currentProductId = null;
+    let questionId = null;
+    let hasSubmitted = false;
+
+    const priceInput = document.getElementById('price-input');
+    const submitBtn = document.getElementById('submit-guess');
+    const statusMessage = document.getElementById('status-message');
+    const questionText = document.getElementById('question-text');
+
+    // Load question data from sessionStorage (set by forward_to_price_guesser event)
+    const storedData = sessionStorage.getItem('priceGuesserQuestionData');
+    if (storedData) {
+        const data = JSON.parse(storedData);
+        sessionStorage.removeItem('priceGuesserQuestionData');
+        console.log('Loaded question from sessionStorage:', data);
+
+        // Display question text (category)
+        questionText.textContent = data.question || 'Guess the price!';
+        questionId = data.questionData.id;
+    }
+
+    // Socket event handlers
+    socket.on('connect', function() {
+        console.log('Connected to Price Guesser');
+        setStatus('Connected. Waiting for product...', 'info');
+    });
+
+    // Handle reconnection - server sends forward_to_price_guesser with current question data
+    socket.on('forward_to_price_guesser', function(data) {
+        console.log('Forwarded to price guesser (reconnection or initial):', data);
+        questionText.textContent = data.question || 'Guess the price!';
+        questionId = data.questionData.id;
+        hasSubmitted = false;
+        priceInput.value = '';
+        priceInput.disabled = false;
+        submitBtn.disabled = false;
+        setStatus('Connected. Waiting for product...', 'info');
+    });
+
+    // Listen for question ready
+    socket.on('pg_question_ready', function(data) {
+        console.log('PG question ready:', data);
+        questionText.textContent = data.question_text || 'Guess the price!';
+        hasSubmitted = false;
+        priceInput.value = '';
+        priceInput.disabled = false;
+        submitBtn.disabled = false;
+        setStatus('Waiting for product...', 'info');
+    });
+
+    // When admin shows a product (auto on game start or next product)
+    socket.on('display_open_amazon', function(data) {
+        console.log('New product shown:', data);
+        currentProductId = data.product_id;
+        hasSubmitted = false;
+
+        // Enable form
+        priceInput.value = '';
+        priceInput.disabled = false;
+        submitBtn.disabled = false;
+
+        setStatus('Enter your price guess!', 'info');
+    });
+
+    // Submit guess button
+    submitBtn.addEventListener('click', function() {
+        if (hasSubmitted) {
+            setStatus('You already submitted a guess!', 'info');
+            return;
+        }
+
+        const guess = priceInput.value.trim();
+
+        if (!guess || parseFloat(guess) <= 0) {
+            setStatus('Please enter a valid price!', 'error');
+            return;
+        }
+
+        // Submit to server
+        socket.emit('submit_price_guess', {
+            question_id: questionId,
+            product_id: currentProductId,
+            round: 1,
+            guess: parseFloat(guess)
+        });
+
+        hasSubmitted = true;
+        priceInput.disabled = true;
+        submitBtn.disabled = true;
+        setStatus('Guess submitted! Waiting for results...', 'success');
+    });
+
+    // Guess submission response
+    socket.on('guess_submitted', function(data) {
+        if (data.success) {
+            setStatus('Guess submitted! Waiting for results...', 'success');
+        } else {
+            setStatus(data.message || 'Error submitting guess', 'error');
+            hasSubmitted = false;
+            priceInput.disabled = false;
+            submitBtn.disabled = false;
+        }
+    });
+
+    // Results received
+    socket.on('price_guesser_results', function(data) {
+        console.log('Results received:', data);
+
+        const currentUsername = '{{ session.username }}';
+        const isWinner = data.winners.some(w => w.username === currentUsername);
+
+        if (isWinner) {
+            setStatus('🎉 You won! Closest guess!', 'success');
+        } else {
+            setStatus('Round complete! Waiting for next product...', 'info');
+        }
+    });
+
+    // Allow Enter key to submit
+    priceInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !submitBtn.disabled) {
+            submitBtn.click();
+        }
+    });
+
+    // Navigation listeners
+    socket.on('admin_players_goto_waiting_room', function() {
+        window.location.href = '/waiting_room';
+    });
+
+    socket.on('admin_players_goto_game_board', function() {
+        window.location.href = '/waiting_room';
+    });
+
+    socket.on('return_to_game_board', function() {
+        window.location.href = '/waiting_room';
+    });
+
+    // Helper function to set status message
+    function setStatus(message, type) {
+        statusMessage.textContent = message;
+        statusMessage.className = 'status-message ' + type;
+    }
+
+    // Auto-focus on input
+    priceInput.focus();
+</script>
+{% endblock %}

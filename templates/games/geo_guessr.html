@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}GeoGuessr - Game Platform{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<div class="card shadow">
+    <div class="card-header">
+        <h2 class="h4 mb-0">GeoGuessr</h2>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info" id="game-status">
+            Waiting for the admin to start the game...
+        </div>
+        
+        <div id="map-container" class="map-container">
+            <div id="map" style="height: 400px;"></div>
+        </div>
+        
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <span id="coordinates-display" class="text-muted small">Click on the map to place a marker</span>
+            <button id="submit-guess" class="btn btn-primary d-none">Submit Guess</button>
+        </div>
+        
+        <div id="results-container" class="d-none">
+            <h3 class="mb-3">Round Results</h3>
+            <div id="results-map" style="height: 300px;"></div>
+            
+            <div class="table-responsive mt-3">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Player</th>
+                            <th>Distance</th>
+                            <th>Points</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-table-body">
+                        <!-- Results will be populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script>
+    // OpenStreetMap configuration
+    const key = 'Md2cWfkcJofuoQI8NXb9';
+    let map = null;
+    let marker = null;
+    let resultsMap = null;
+    let isRoundActive = false;
+    
+    // Connect to socket.io
+    const socket = io();
+    
+    // Initialize map once the page is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeMap();
+    });
+    
+    // Socket event handlers
+    socket.on('connect', function() {
+        console.log('Connected to GeoGuessr game');
+        // Server will send geo_guessr_ready or geo_guessr_round_started if game is active
+    });
+
+    // Handle game_started event (for reconnection via Phase 2)
+    socket.on('game_started', function(data) {
+        console.log('Game started event received:', data);
+    });
+
+    socket.on('geo_guessr_round_started', function(data) {
+        isRoundActive = true;
+        
+        // Reset the map
+        if (marker) {
+            map.removeLayer(marker);
+            marker = null;
+        }
+        
+        // Center map view
+        map.setView([0, 0], 2);
+
+        // Update status
+        document.getElementById('game-status').textContent = 'Click on the map to place your guess';
+        document.getElementById('game-status').className = 'alert alert-primary';
+        
+        // Hide results container
+        document.getElementById('results-container').classList.add('d-none');
+        
+        // Show map container
+        document.getElementById('map-container').classList.remove('d-none');
+    });
+    
+    socket.on('geo_guessr_round_ended', function(data) {
+        isRoundActive = false;
+        document.getElementById('game-status').textContent = 'Round has ended. Waiting for admin...';
+        document.getElementById('game-status').className = 'alert alert-warning';
+
+        // Hide submit button
+        document.getElementById('submit-guess').classList.add('d-none');
+
+        // Note: Results are shown on the display screen
+    });
+    
+    socket.on('geo_guessr_game_over', function(data) {
+        // Redirect to waiting room after short delay
+        setTimeout(function() {
+            window.location.href = '/waiting_room';
+        }, 2000);
+    });
+    
+    // Initialize map
+    function initializeMap() {
+        // Create main map
+        map = L.map('map').setView([0, 0], 2);
+        
+        const mtLayer = L.tileLayer('https://api.maptiler.com/maps/streets/{z}/{x}/{y}.png?key=' + key, {
+            maxZoom: 18
+        }).addTo(map);
+        
+        // Add click event
+        map.on('click', function(e) {
+            if (!isRoundActive) return;
+            
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+            
+            placeMarker(lat, lng);
+        });
+    }
+    
+    // Place marker on the map
+    function placeMarker(lat, lng) {
+        // Remove existing marker
+        if (marker) {
+            map.removeLayer(marker);
+        }
+        
+        // Create new marker
+        marker = L.marker([lat, lng]).addTo(map);
+        
+        // Update coordinates display
+        document.getElementById('coordinates-display').textContent = `Selected: Lat ${lat.toFixed(4)}, Lng ${lng.toFixed(4)}`;
+        
+        // Show submit button
+        document.getElementById('submit-guess').classList.remove('d-none');
+    }
+    
+    // Submit guess
+    document.getElementById('submit-guess').addEventListener('click', function() {
+        if (!marker || !isRoundActive) return;
+        
+        const position = marker.getLatLng();
+        
+        socket.emit('geo_guessr_submit_guess', {
+            latitude: position.lat,
+            longitude: position.lng
+        });
+        
+        document.getElementById('game-status').textContent = 'Guess submitted! Waiting for round to end...';
+        document.getElementById('game-status').className = 'alert alert-info';
+    });
+    
+    // Show results
+    function showResults(data) {
+        // Show results container
+        document.getElementById('results-container').classList.remove('d-none');
+        
+        // Create results map if it doesn't exist
+        if (!resultsMap) {
+            resultsMap = L.map('results-map').setView([0, 0], 2);
+            
+            L.tileLayer('https://api.maptiler.com/maps/streets/{z}/{x}/{y}.png?key=' + key, {
+                attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">© MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">© OpenStreetMap contributors</a>',
+                maxZoom: 18
+            }).addTo(resultsMap);
+        } else {
+            // Clear existing markers
+            resultsMap.eachLayer(function(layer) {
+                if (layer instanceof L.Marker) {
+                    resultsMap.removeLayer(layer);
+                }
+            });
+        }
+        
+        // Add location marker
+        const locationIcon = L.icon({
+            iconUrl: 'https://cdn0.iconfinder.com/data/icons/small-n-flat/24/678111-map-marker-512.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+        
+        const locationMarker = L.marker([data.location.latitude, data.location.longitude], {
+            icon: locationIcon
+        }).addTo(resultsMap);
+        
+        locationMarker.bindPopup(`<strong>${data.location.name}</strong>`).openPopup();
+        
+        // Add player markers
+        const bounds = L.latLngBounds([data.location.latitude, data.location.longitude]);
+        
+        data.players.forEach((player, index) => {
+            const playerIcon = L.icon({
+                iconUrl: 'https://cdn0.iconfinder.com/data/icons/octicons/1024/primitive-dot-512.png',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12],
+                popupAnchor: [0, -12]
+            });
+            
+            const playerMarker = L.marker([player.latitude, player.longitude], {
+                icon: playerIcon
+            }).addTo(resultsMap);
+            
+            playerMarker.bindPopup(`<strong>${player.username}</strong><br>Distance: ${player.distance.toFixed(2)} km`);
+            
+            bounds.extend([player.latitude, player.longitude]);
+        });
+        
+        // Fit map to bounds
+        resultsMap.fitBounds(bounds, {
+            padding: [50, 50]
+        });
+        
+        // Populate results table
+        const tableBody = document.getElementById('results-table-body');
+        tableBody.innerHTML = '';
+        
+        data.players.forEach((player, index) => {
+            const row = document.createElement('tr');
+            
+            // Highlight current player
+            if (player.username === localStorage.getItem('username')) {
+                row.className = 'table-primary';
+            }
+            
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${player.username}</td>
+                <td>${player.distance.toFixed(2)} km</td>
+                <td>${player.points}</td>
+            `;
+            
+            tableBody.appendChild(row);
+        });
+    }
+</script>
+{% endblock %}

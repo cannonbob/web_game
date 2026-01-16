@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Cooperative Puzzle - Game Platform{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<div class="coop-puzzle-container">
+    <div class="card shadow">
+        <div class="card-header">
+            <h2 class="h4 mb-0">Cooperative Puzzle</h2>
+        </div>
+        <div class="card-body">
+            <div class="puzzle-canvas-wrapper">
+                <canvas id="puzzleCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Completion Message -->
+<div class="completion-message" id="completionMessage">
+    <h1 id="completionTitle"></h1>
+    <p id="completionText"></p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/socket-utility.js') }}"></script>
+<script src="{{ url_for('static', filename='js/coop-puzzle.js') }}"></script>
+{% endblock %}

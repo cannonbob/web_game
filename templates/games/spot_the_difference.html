@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hidden Object Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .game-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 1000px;
+            width: 100%;
+        }
+
+        .game-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .game-title {
+            font-size: 2.5em;
+            color: #333;
+            margin: 0;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .game-stats {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .stat-item {
+            padding: 10px 20px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 25px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .images-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .image-section {
+            text-align: center;
+        }
+
+        .image-title {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        canvas {
+            border: 3px solid #ddd;
+            border-radius: 10px;
+            cursor: crosshair;
+            max-width: 100%;
+            height: auto;
+            transition: transform 0.2s ease;
+        }
+
+        canvas:hover {
+            transform: scale(1.02);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .upload-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .file-input {
+            margin: 10px;
+            padding: 10px 20px;
+            border: none;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+
+        .file-input:hover {
+            background: linear-gradient(45deg, #764ba2, #667eea);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button {
+            padding: 12px 25px;
+            margin: 5px;
+            border: none;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: linear-gradient(45deg, #764ba2, #667eea);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .difference-marker {
+            position: absolute;
+            border: 3px solid #ff4757;
+            border-radius: 50%;
+            background: rgba(255, 71, 87, 0.2);
+            pointer-events: none;
+            animation: pulse 1s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+
+        .victory-message {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(45deg, #26de81, #20bf6b);
+            color: white;
+            border-radius: 15px;
+            margin: 20px 0;
+            font-size: 1.5em;
+            font-weight: bold;
+            animation: bounce 0.6s ease-in-out;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 60%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-20px); }
+            80% { transform: translateY(-10px); }
+        }
+
+        .tolerance-control {
+            margin: 10px 0;
+        }
+
+        .tolerance-control input {
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <h1 class="game-title">Hidden Object Game</h1>
+            <p>Upload two images and find the differences automatically!</p>
+        </div>
+
+        <div class="upload-section">
+            <div>
+                <label for="original-upload" class="file-input">Choose Original Image</label>
+                <input type="file" id="original-upload" accept="image/*" style="display: none;">
+            </div>
+            <div>
+                <label for="modified-upload" class="file-input">Choose Modified Image</label>
+                <input type="file" id="modified-upload" accept="image/*" style="display: none;">
+            </div>
+            <div class="tolerance-control">
+                <label>Difference Sensitivity: </label>
+                <input type="range" id="tolerance" min="10" max="100" value="30">
+                <span id="tolerance-value">30</span>
+            </div>
+            <button onclick="analyzeImages()">Analyze Differences</button>
+            <button onclick="newGame()">New Game</button>
+        </div>
+
+        <div class="game-stats">
+            <div class="stat-item">Found: <span id="found-count">0</span></div>
+            <div class="stat-item">Total: <span id="total-count">0</span></div>
+            <div class="stat-item">Time: <span id="timer">0:00</span></div>
+        </div>
+
+        <div class="images-container">
+            <div class="image-section">
+                <div class="image-title">Original Image</div>
+                <canvas id="original-canvas"></canvas>
+            </div>
+            <div class="image-section">
+                <div class="image-title">Find the Differences!</div>
+                <canvas id="game-canvas" onclick="handleClick(event)"></canvas>
+            </div>
+        </div>
+
+        <div id="victory-message" style="display: none;" class="victory-message">
+            🎉 Congratulations! You found all differences! 🎉
+        </div>
+    </div>
+
+    <script>
+        let originalImage = null;
+        let modifiedImage = null;
+        let differences = [];
+        let foundDifferences = new Set();
+        let gameStartTime = null;
+        let timerInterval = null;
+
+        // File upload handlers
+        document.getElementById('original-upload').addEventListener('change', function(e) {
+            loadImage(e.target.files[0], 'original');
+        });
+
+        document.getElementById('modified-upload').addEventListener('change', function(e) {
+            loadImage(e.target.files[0], 'modified');
+        });
+
+        // Tolerance slider
+        document.getElementById('tolerance').addEventListener('input', function(e) {
+            document.getElementById('tolerance-value').textContent = e.target.value;
+        });
+
+        function loadImage(file, type) {
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    if (type === 'original') {
+                        originalImage = img;
+                        drawImage(img, 'original-canvas');
+                    } else {
+                        modifiedImage = img;
+                        drawImage(img, 'game-canvas');
+                    }
+                    
+                    if (originalImage && modifiedImage) {
+                        document.querySelector('button[onclick="analyzeImages()"]').style.display = 'inline-block';
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function drawImage(img, canvasId) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size to match image
+            canvas.width = img.width;
+            canvas.height = img.height;
+            
+            // Draw image
+            ctx.drawImage(img, 0, 0);
+        }
+
+        function analyzeImages() {
+            if (!originalImage || !modifiedImage) {
+                alert('Please upload both images first!');
+                return;
+            }
+
+            const tolerance = parseInt(document.getElementById('tolerance').value);
+            differences = findDifferences(originalImage, modifiedImage, tolerance);
+            
+            document.getElementById('total-count').textContent = differences.length;
+            document.getElementById('found-count').textContent = '0';
+            foundDifferences.clear();
+            
+            if (differences.length === 0) {
+                alert('No differences found! Try adjusting the sensitivity.');
+                return;
+            }
+
+            startGame();
+        }
+
+        function findDifferences(img1, img2, tolerance) {
+            const canvas1 = document.createElement('canvas');
+            const canvas2 = document.createElement('canvas');
+            const ctx1 = canvas1.getContext('2d');
+            const ctx2 = canvas2.getContext('2d');
+
+            canvas1.width = canvas2.width = img1.width;
+            canvas1.height = canvas2.height = img1.height;
+
+            ctx1.drawImage(img1, 0, 0);
+            ctx2.drawImage(img2, 0, 0);
+
+            const data1 = ctx1.getImageData(0, 0, img1.width, img1.height);
+            const data2 = ctx2.getImageData(0, 0, img2.width, img2.height);
+
+            const diffRegions = [];
+            const visited = new Set();
+            const minRegionSize = 100; // Minimum pixels for a difference region
+
+            for (let y = 0; y < img1.height; y += 2) { // Skip every other pixel for performance
+                for (let x = 0; x < img1.width; x += 2) {
+                    const key = `${x},${y}`;
+                    if (visited.has(key)) continue;
+
+                    const i = (y * img1.width + x) * 4;
+                    const diff = Math.abs(data1.data[i] - data2.data[i]) +
+                               Math.abs(data1.data[i + 1] - data2.data[i + 1]) +
+                               Math.abs(data1.data[i + 2] - data2.data[i + 2]);
+
+                    if (diff > tolerance) {
+                        const region = floodFill(data1, data2, x, y, img1.width, img1.height, tolerance, visited);
+                        if (region.pixels.length > minRegionSize) {
+                            diffRegions.push({
+                                centerX: region.centerX,
+                                centerY: region.centerY,
+                                radius: Math.max(20, Math.sqrt(region.pixels.length / Math.PI))
+                            });
+                        }
+                    }
+                }
+            }
+
+            return diffRegions;
+        }
+
+        function floodFill(data1, data2, startX, startY, width, height, tolerance, visited) {
+            const stack = [{x: startX, y: startY}];
+            const pixels = [];
+            let sumX = 0, sumY = 0;
+
+            while (stack.length > 0) {
+                const {x, y} = stack.pop();
+                const key = `${x},${y}`;
+
+                if (visited.has(key) || x < 0 || x >= width || y < 0 || y >= height) continue;
+                
+                const i = (y * width + x) * 4;
+                const diff = Math.abs(data1.data[i] - data2.data[i]) +
+                           Math.abs(data1.data[i + 1] - data2.data[i + 1]) +
+                           Math.abs(data1.data[i + 2] - data2.data[i + 2]);
+
+                if (diff <= tolerance) continue;
+
+                visited.add(key);
+                pixels.push({x, y});
+                sumX += x;
+                sumY += y;
+
+                // Add neighboring pixels
+                stack.push({x: x + 1, y}, {x: x - 1, y}, {x, y: y + 1}, {x, y: y - 1});
+            }
+
+            return {
+                pixels,
+                centerX: pixels.length > 0 ? sumX / pixels.length : startX,
+                centerY: pixels.length > 0 ? sumY / pixels.length : startY
+            };
+        }
+
+        function startGame() {
+            gameStartTime = Date.now();
+            timerInterval = setInterval(updateTimer, 1000);
+            document.getElementById('victory-message').style.display = 'none';
+        }
+
+        function updateTimer() {
+            const elapsed = Math.floor((Date.now() - gameStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            document.getElementById('timer').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function handleClick(event) {
+            if (!gameStartTime) return;
+
+            const canvas = document.getElementById('game-canvas');
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            const clickX = (event.clientX - rect.left) * scaleX;
+            const clickY = (event.clientY - rect.top) * scaleY;
+
+            // Check if click is near any unfound difference
+            for (let i = 0; i < differences.length; i++) {
+                if (foundDifferences.has(i)) continue;
+
+                const diff = differences[i];
+                const distance = Math.sqrt(
+                    Math.pow(clickX - diff.centerX, 2) + 
+                    Math.pow(clickY - diff.centerY, 2)
+                );
+
+                if (distance <= diff.radius) {
+                    foundDifferences.add(i);
+                    markDifference(diff.centerX, diff.centerY, diff.radius);
+                    
+                    document.getElementById('found-count').textContent = foundDifferences.size;
+                    
+                    if (foundDifferences.size === differences.length) {
+                        endGame();
+                    }
+                    return;
+                }
+            }
+        }
+
+        function markDifference(x, y, radius) {
+            const canvas = document.getElementById('game-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            ctx.strokeStyle = '#ff4757';
+            ctx.fillStyle = 'rgba(255, 71, 87, 0.2)';
+            ctx.lineWidth = 3;
+            
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        function endGame() {
+            clearInterval(timerInterval);
+            document.getElementById('victory-message').style.display = 'block';
+        }
+
+        function newGame() {
+            clearInterval(timerInterval);
+            foundDifferences.clear();
+            differences = [];
+            gameStartTime = null;
+            
+            document.getElementById('found-count').textContent = '0';
+            document.getElementById('total-count').textContent = '0';
+            document.getElementById('timer').textContent = '0:00';
+            document.getElementById('victory-message').style.display = 'none';
+            
+            if (modifiedImage) {
+                drawImage(modifiedImage, 'game-canvas');
+            }
+        }
+    </script>
+</body>
+</html>

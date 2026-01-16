@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Flappy Birds - Game Platform{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<div class="card shadow">
+    <div class="card-header">
+        <h2 class="h4 mb-0">Flappy Birds</h2>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info" id="game-status">
+            Waiting for the admin to start the game...
+        </div>
+        
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <div class="d-flex align-items-center">
+                    <span class="me-2">Score:</span>
+                    <span id="current-score" class="badge bg-primary fs-5">0</span>
+                </div>
+            </div>
+            <div class="col-md-6 text-end">
+                <div class="d-flex align-items-center justify-content-end">
+                    <span class="me-2">High Score:</span>
+                    <span id="high-score" class="badge bg-success fs-5">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="d-flex justify-content-center">
+            <canvas id="game-canvas" width="320" height="480" class="game-canvas"></canvas>
+        </div>
+        
+        <div class="d-flex justify-content-center mt-3">
+            <div id="touch-area" class="btn btn-primary btn-lg px-5 py-3">
+                Tap to flap!
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/flappy-birds.js') }}"></script>
+{% endblock %}

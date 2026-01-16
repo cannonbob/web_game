@@ -1,0 +1,572 @@
+{% extends "base.html" %}
+
+{% block title %}This or That - Game Platform{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<style>
+    .category-box {
+        position: relative;
+        width: 100%;
+        padding: 33px 20px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    /* Top zone: Blue away (top), Purple towards (bottom) */
+    #category-top {
+        background: linear-gradient(180deg,
+            rgba(102, 126, 234, 0.08) 0%,
+            rgba(118, 75, 162, 0.08) 100%);
+        border-top: 4px solid #667eea;
+        border-bottom: 4px solid #764ba2;
+    }
+
+    #category-top::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 10px,
+            rgba(102, 126, 234, 0.03) 10px,
+            rgba(102, 126, 234, 0.03) 20px
+        );
+    }
+
+    /* Bottom zone: Purple towards (top), Blue away (bottom) */
+    #category-bottom {
+        background: linear-gradient(180deg,
+            rgba(118, 75, 162, 0.08) 0%,
+            rgba(102, 126, 234, 0.08) 100%);
+        border-top: 4px solid #764ba2;
+        border-bottom: 4px solid #667eea;
+    }
+
+    #category-bottom::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 10px,
+            rgba(118, 75, 162, 0.03) 10px,
+            rgba(118, 75, 162, 0.03) 20px
+        );
+    }
+
+    .category-box.drag-over {
+        border-top-width: 5px;
+        border-bottom-width: 5px;
+    }
+
+    .category-name {
+        font-size: 22px;
+        font-weight: 700;
+        color: #667eea;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .item-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 35px 20px;
+    }
+
+    .game-area-body {
+        min-height: 70vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 30px 0;
+        gap: 35px;
+    }
+
+    .draggable-item {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        padding: 25px 30px;
+        border-radius: 15px;
+        font-size: 18px;
+        font-weight: 600;
+        text-align: center;
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        cursor: grab;
+        user-select: none;
+        transition: all 0.2s ease;
+        max-width: calc(100% - 60px);
+        margin: 0 30px;
+        touch-action: none;
+        will-change: transform;
+    }
+
+    .draggable-item:active {
+        cursor: grabbing;
+        transform: scale(0.98);
+    }
+
+    .draggable-item.dragging {
+        opacity: 0.7;
+    }
+
+    .drag-clone {
+        position: fixed;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        z-index: 10000;
+        opacity: 0.9;
+        transition: none !important;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border-radius: 15px;
+    }
+
+    .feedback-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 64px;
+        font-weight: bold;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s;
+        z-index: 2;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .feedback-overlay.show {
+        opacity: 1;
+    }
+
+    .feedback-overlay.correct {
+        color: #4CAF50;
+    }
+
+    .feedback-overlay.incorrect {
+        color: #f44336;
+    }
+</style>
+
+<div class="sorting-game-container">
+    <div class="card shadow">
+        <!-- Waiting State -->
+        <div id="waiting-container">
+            <div class="card-header">
+                <h2 class="h4 mb-0">This or That</h2>
+            </div>
+            <div class="card-body text-center py-5">
+                <h3 class="text-primary mb-3">Get Ready!</h3>
+                <p>Waiting for the game to start...</p>
+            </div>
+        </div>
+
+        <!-- Countdown -->
+        <div id="countdown-container" class="d-none">
+            <div class="card-header">
+                <h2 class="h4 mb-0">This or That</h2>
+            </div>
+            <div class="card-body text-center py-5"></div>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-container" class="d-none">
+            <div class="card-header">
+                <h4 class="mb-0">This or That</h4>
+            </div>
+
+        <!-- Score Display -->
+        <div class="card-body bg-light border-bottom">
+            <div class="row text-center">
+                <div class="col-6">
+                    <div class="h2 text-primary mb-0" id="score-display">0</div>
+                    <small class="text-muted">Score</small>
+                </div>
+                <div class="col-6">
+                    <div class="h2 text-primary mb-0" id="progress-display">0/0</div>
+                    <small class="text-muted">Progress</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Area -->
+        <div class="card-body game-area-body">
+            <!-- Top Category -->
+            <div class="category-box" id="category-top" data-category-id="">
+                <div class="category-name" id="category-top-name">Category 1</div>
+                <div class="feedback-overlay" id="feedback-top"></div>
+            </div>
+
+            <!-- Draggable Item -->
+            <div class="item-container">
+                <div class="draggable-item" id="draggable-item" draggable="true" data-item-id="">
+                    Loading...
+                </div>
+            </div>
+
+            <!-- Bottom Category -->
+            <div class="category-box" id="category-bottom" data-category-id="">
+                <div class="category-name" id="category-bottom-name">Category 2</div>
+                <div class="feedback-overlay" id="feedback-bottom"></div>
+            </div>
+        </div>
+    </div>
+
+        <!-- Results -->
+        <div id="results-container" class="d-none">
+            <div class="card-header">
+                <h2 class="h4 mb-0">This or That</h2>
+            </div>
+            <div class="card-body text-center py-5">
+                <h3 class="text-primary mb-3">Game Complete!</h3>
+                <div class="display-4 text-primary mb-2" id="final-score">0</div>
+                <p class="text-muted mb-0">Points</p>
+                <p class="mt-4 text-muted">Waiting for results...</p>
+                <div id="ranking-list" class="mt-4"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+    // Game state
+    let currentScore = 0;
+    let itemsSorted = 0;
+    let totalItems = 0;
+    let gameActive = false;
+    let currentItem = null;
+    let categories = [];
+    let draggedElement = null;
+
+    // DOM Elements
+    const waitingContainer = document.getElementById('waiting-container');
+    const gameContainer = document.getElementById('game-container');
+    const resultsContainer = document.getElementById('results-container');
+    const countdownContainer = document.getElementById('countdown-container');
+    const scoreDisplay = document.getElementById('score-display');
+    const progressDisplay = document.getElementById('progress-display');
+    const draggableItem = document.getElementById('draggable-item');
+    const categoryTop = document.getElementById('category-top');
+    const categoryBottom = document.getElementById('category-bottom');
+    const categoryTopName = document.getElementById('category-top-name');
+    const categoryBottomName = document.getElementById('category-bottom-name');
+    const feedbackTop = document.getElementById('feedback-top');
+    const feedbackBottom = document.getElementById('feedback-bottom');
+    const finalScore = document.getElementById('final-score');
+    const rankingList = document.getElementById('ranking-list');
+
+    // Socket connection
+    const socket = io();
+
+    socket.on('connect', function() {
+        console.log('Connected to This or That');
+        console.log('Socket ID:', socket.id);
+    });
+
+    // Log all socket events for debugging
+    socket.onAny((eventName, ...args) => {
+        console.log(`Socket event received: ${eventName}`, args);
+    });
+
+    socket.on('sorting_game_ready', function(data) {
+        console.log('Sorting game ready:', data);
+    });
+
+    socket.on('sorting_game_countdown', function(data) {
+        console.log('Countdown:', data);
+        waitingContainer.classList.add('d-none');
+        gameContainer.classList.add('d-none');
+        resultsContainer.classList.add('d-none');
+        countdownContainer.classList.remove('d-none');
+
+        createCountdown(data.countdown, function() {
+            countdownContainer.classList.add('d-none');
+            gameContainer.classList.remove('d-none');
+            gameActive = true;
+        }, 'countdown-container');
+    });
+
+    socket.on('sorting_game_data', function(data) {
+        console.log('Game data received:', data);
+        categories = data.categories;
+        totalItems = data.total_items;
+
+        // Set up categories
+        if (categories.length >= 2) {
+            const cat1 = categories.find(c => c.category_index === 1);
+            const cat2 = categories.find(c => c.category_index === 2);
+
+            if (cat1) {
+                categoryTopName.textContent = cat1.category_name;
+                categoryTop.setAttribute('data-category-id', cat1.id);
+            }
+            if (cat2) {
+                categoryBottomName.textContent = cat2.category_name;
+                categoryBottom.setAttribute('data-category-id', cat2.id);
+            }
+        }
+
+        updateProgress();
+    });
+
+    socket.on('sorting_game_item', function(data) {
+        console.log('Item received:', data);
+        currentItem = data.item;
+        draggableItem.textContent = data.item.item_text;
+        draggableItem.setAttribute('data-item-id', data.item.id);
+        draggableItem.style.display = 'block';
+
+        if (data.progress) {
+            itemsSorted = data.progress.current - 1;
+            totalItems = data.progress.total;
+            updateProgress();
+        }
+    });
+
+    socket.on('sorting_game_result', function(data) {
+        console.log('Result received:', data);
+        currentScore = data.score;
+        itemsSorted = data.items_sorted;
+        scoreDisplay.textContent = currentScore;
+        updateProgress();
+    });
+
+    socket.on('sorting_game_player_completed', function(data) {
+        console.log('Player completed:', data);
+        gameActive = false;
+        gameContainer.classList.add('d-none');
+        resultsContainer.classList.remove('d-none');
+        finalScore.textContent = data.score;
+    });
+
+    socket.on('sorting_game_ended', function(data) {
+        console.log('Game ended:', data);
+        showResults(data.results);
+    });
+
+    socket.on('return_to_game_board', function() {
+        // Return players to waiting room
+        window.location.href = '/waiting_room';
+    });
+
+    socket.on('admin_players_goto_waiting_room', function() {
+        // Navigate to waiting room
+        window.location.href = '/waiting_room';
+    });
+
+    function updateProgress() {
+        progressDisplay.textContent = `${itemsSorted}/${totalItems}`;
+    }
+
+    function showResults(results) {
+        let html = '';
+        results.forEach((player, index) => {
+            const bgClass = index === 0 ? 'bg-warning text-white' : 'bg-light';
+            html += `
+                <div class="d-flex justify-content-between align-items-center p-3 mb-2 rounded ${bgClass}">
+                    <span><strong>${index + 1}.</strong> ${player.username}</span>
+                    <span><strong>${player.score}</strong> pts</span>
+                </div>
+            `;
+        });
+        rankingList.innerHTML = html;
+    }
+
+    // Drag and Drop Implementation
+    draggableItem.addEventListener('dragstart', function(e) {
+        draggedElement = e.target;
+        e.target.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    });
+
+    draggableItem.addEventListener('dragend', function(e) {
+        e.target.classList.remove('dragging');
+    });
+
+    [categoryTop, categoryBottom].forEach(dropZone => {
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            this.classList.add('drag-over');
+            return false;
+        });
+
+        dropZone.addEventListener('dragenter', function(e) {
+            this.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', function(e) {
+            this.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', function(e) {
+            e.stopPropagation();
+            this.classList.remove('drag-over');
+
+            if (!gameActive || !currentItem) return false;
+
+            const categoryId = parseInt(this.getAttribute('data-category-id'));
+            const itemId = parseInt(draggedElement.getAttribute('data-item-id'));
+
+            // Hide the dragged item
+            draggableItem.style.display = 'none';
+
+            // Send to server
+            socket.emit('sorting_game_submit_sort', {
+                item_id: itemId,
+                category_id: categoryId
+            });
+
+            // Visual feedback
+            const feedbackEl = this.querySelector('.feedback-overlay');
+            const isCorrect = currentItem.category_id === categoryId;
+
+            feedbackEl.textContent = isCorrect ? '✓' : '✗';
+            feedbackEl.className = `feedback-overlay show ${isCorrect ? 'correct' : 'incorrect'}`;
+
+            setTimeout(() => {
+                feedbackEl.classList.remove('show');
+            }, 500);
+
+            return false;
+        });
+    });
+
+    // Touch support for mobile - Optimized for performance
+    let isDragging = false;
+    let clonedElement = null;
+    let lastDropZone = null;
+    let animationFrameId = null;
+    let startX, startY;
+    let currentX, currentY;
+
+    // Cache these to avoid calling getBoundingClientRect in the loop
+    let zoneTopRect, zoneBottomRect;
+
+    draggableItem.addEventListener('touchstart', function(e) {
+        if (!gameActive || !currentItem) return;
+
+        const touch = e.touches[0];
+        isDragging = true;
+
+        // Get the initial position of the item to calculate offset
+        const rect = draggableItem.getBoundingClientRect();
+        startX = touch.clientX - rect.left;
+        startY = touch.clientY - rect.top;
+
+        // PRE-CALCULATE Drop Zone positions once
+        zoneTopRect = categoryTop.getBoundingClientRect();
+        zoneBottomRect = categoryBottom.getBoundingClientRect();
+
+        // Create Clone
+        clonedElement = this.cloneNode(true);
+        clonedElement.classList.add('drag-clone');
+        // Set initial position using transform
+        updateTransform(touch.clientX - startX, touch.clientY - startY);
+        document.body.appendChild(clonedElement);
+
+        this.style.opacity = '0.3';
+
+        requestAnimationFrame(render);
+    });
+
+    function updateTransform(x, y) {
+        if (clonedElement) {
+            // translate3d triggers Hardware Acceleration (GPU)
+            clonedElement.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+        }
+    }
+
+    function render() {
+        if (!isDragging) return;
+
+        updateTransform(currentX - startX, currentY - startY);
+
+        // Manual Collision Detection (Much faster than elementFromPoint)
+        let activeZone = null;
+        if (currentY > zoneTopRect.top && currentY < zoneTopRect.bottom &&
+            currentX > zoneTopRect.left && currentX < zoneTopRect.right) {
+            activeZone = categoryTop;
+        } else if (currentY > zoneBottomRect.top && currentY < zoneBottomRect.bottom &&
+                   currentX > zoneBottomRect.left && currentX < zoneBottomRect.right) {
+            activeZone = categoryBottom;
+        }
+
+        // Update visual state of zones
+        if (activeZone !== lastDropZone) {
+            if (lastDropZone) lastDropZone.classList.remove('drag-over');
+            if (activeZone) activeZone.classList.add('drag-over');
+            lastDropZone = activeZone;
+        }
+
+        animationFrameId = requestAnimationFrame(render);
+    }
+
+    draggableItem.addEventListener('touchmove', function(e) {
+        if (!isDragging) return;
+        e.preventDefault(); // Stop scrolling
+
+        const touch = e.touches[0];
+        currentX = touch.clientX;
+        currentY = touch.clientY;
+    }, { passive: false });
+
+    draggableItem.addEventListener('touchend', function(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        cancelAnimationFrame(animationFrameId);
+
+        const finalZone = lastDropZone; // Our cached collision result
+
+        // Cleanup
+        if (clonedElement) {
+            document.body.removeChild(clonedElement);
+            clonedElement = null;
+        }
+        this.style.opacity = '1';
+        [categoryTop, categoryBottom].forEach(z => z.classList.remove('drag-over'));
+        lastDropZone = null;
+
+        if (finalZone && gameActive && currentItem) {
+            handleDrop(finalZone);
+        }
+    });
+
+    function handleDrop(zone) {
+        const categoryId = parseInt(zone.getAttribute('data-category-id'));
+        const itemId = parseInt(draggableItem.getAttribute('data-item-id'));
+
+        draggableItem.style.display = 'none';
+        socket.emit('sorting_game_submit_sort', { item_id: itemId, category_id: categoryId });
+
+        // Feedback logic
+        const feedbackEl = zone.querySelector('.feedback-overlay');
+        const isCorrect = currentItem.category_id === categoryId;
+        feedbackEl.textContent = isCorrect ? '✓' : '✗';
+        feedbackEl.className = `feedback-overlay show ${isCorrect ? 'correct' : 'incorrect'}`;
+        setTimeout(() => feedbackEl.classList.remove('show'), 500);
+    }
+</script>
+{% endblock %}

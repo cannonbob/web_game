@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Match Me - Game Platform{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<div class="match-me-container">
+    <div class="card shadow">
+        <div class="card-header">
+            <h2 class="h4 mb-0">Match Me!</h2>
+        </div>
+        <div class="card-body">
+            <div id="countdown-container" class="text-center mb-4"></div>
+            
+            <div id="game-container" class="d-none">
+                <div class="progress mb-3">
+                    <div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%;" 
+                        aria-valuenow="0" aria-valuemin="0" aria-valuemax="12">
+                        0/12
+                    </div>
+                </div>
+                
+                <div class="mb-4 text-center">
+                    <span class="badge bg-primary me-2">Points: <span id="points-display">0</span></span>
+                    <span class="badge bg-success me-2">Correct: <span id="correct-count">0</span></span>
+                    <span class="badge bg-danger">Incorrect: <span id="incorrect-count">0</span></span>
+                </div>
+                
+                <div id="title-container" class="title-container mb-4">
+                    Waiting for the game to start...
+                </div>
+                
+                <div id="artists-container" class="artists-container">
+                    <!-- Artist options will be populated dynamically -->
+                </div>
+            </div>
+            
+            <div id="results-container" class="d-none text-center">
+                <h3 class="mb-4">Game Complete!</h3>
+                <div class="alert alert-primary">
+                    <h4 class="mb-3">Your Final Score</h4>
+                    <p class="display-4 mb-3"><span id="final-points">0</span> Points</p>
+                    <p class="mb-3">(<span id="final-correct">0</span> correct out of <span id="final-total">0</span> questions)</p>
+                    <p>Waiting for other players to finish...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script src="{{ url_for('static', filename='js/match-me.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Birds - Game Display</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #2c3e50;
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+        }
+        
+        .game-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .game-title {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        
+        .player-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem auto;
+            max-width: 1200px;
+        }
+        
+        .player-card {
+            background-color: #34495e;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+            text-align: center;
+        }
+        
+        .player-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .player-name {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid #3498db;
+            padding-bottom: 0.5rem;
+        }
+        
+        .player-score {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #3498db;
+            margin-bottom: 0.5rem;
+        }
+        
+        .score-label {
+            font-size: 1rem;
+            color: #bdc3c7;
+        }
+        
+        .game-over-container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        
+        .winner-announcement {
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            color: #f1c40f;
+            text-shadow: 0 0 15px rgba(241, 196, 15, 0.5);
+        }
+        
+        .winner-name {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            color: #f1c40f;
+            text-shadow: 0 0 20px rgba(241, 196, 15, 0.7);
+            font-weight: bold;
+        }
+        
+        .scores-table {
+            width: 100%;
+            background-color: #34495e;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 2rem;
+        }
+        
+        .scores-table th, .scores-table td {
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        .scores-table thead {
+            background-color: #3498db;
+        }
+        
+        .scores-table tr:nth-child(even) {
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+        
+        .first-place td {
+            color: gold;
+            font-weight: bold;
+        }
+        
+        .second-place td {
+            color: silver;
+            font-weight: bold;
+        }
+        
+        .third-place td {
+            color: #cd7f32; /* bronze */
+            font-weight: bold;
+        }
+        
+        .game-status {
+            font-size: 1.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            background-color: #3498db;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+        
+        .status-active {
+            background-color: #2ecc71;
+        }
+        
+        .status-ended {
+            background-color: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-header">
+        <h1 class="game-title">Flappy Birds</h1>
+        <div id="game-status" class="game-status">Waiting for game to start</div>
+    </div>
+    
+    <div id="players-container" class="player-grid">
+        <!-- Player cards will be populated dynamically -->
+    </div>
+    
+    <div id="game-over-container" class="game-over-container d-none">
+        <h2 class="winner-announcement">Winner!</h2>
+        <div class="winner-name" id="winner-name">Player1</div>
+        
+        <table class="scores-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Player</th>
+                    <th>Score</th>
+                </tr>
+            </thead>
+            <tbody id="final-scores-table">
+                <!-- Final scores will be populated dynamically -->
+            </tbody>
+        </table>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        let players = [];
+        let gameActive = false;
+        
+        // Connect to socket.io
+        socket.on('connect', function() {
+            console.log('Display connected to server');
+        });
+        
+        // Game initialization
+        socket.on('flappy_birds_init', function(data) {
+            players = data.users;
+            renderPlayerGrid();
+            
+            // Reset game status
+            const gameStatus = document.getElementById('game-status');
+            gameStatus.textContent = 'Waiting for game to start';
+            gameStatus.className = 'game-status';
+            
+            // Hide game over container
+            document.getElementById('game-over-container').classList.add('d-none');
+            
+            // Show players container
+            document.getElementById('players-container').classList.remove('d-none');
+        });
+        
+        // Game started
+        socket.on('flappy_birds_started', function() {
+            gameActive = true;
+            
+            // Update game status
+            const gameStatus = document.getElementById('game-status');
+            gameStatus.textContent = 'Game in progress';
+            gameStatus.className = 'game-status status-active';
+        });
+        
+        // Score update
+        socket.on('flappy_birds_update_scores', function(data) {
+            updatePlayerScore(data.username, data.score);
+        });
+        
+        // Game over
+        socket.on('flappy_birds_game_over', function(data) {
+            gameActive = false;
+
+            // Update game status
+            const gameStatus = document.getElementById('game-status');
+            gameStatus.textContent = 'Game Over';
+            gameStatus.className = 'game-status status-ended';
+
+            // Hide players container
+            document.getElementById('players-container').classList.add('d-none');
+
+            // Show game over container
+            document.getElementById('game-over-container').classList.remove('d-none');
+
+            // Update winner
+            document.getElementById('winner-name').textContent = data.winner;
+
+            // Populate final scores table
+            const scoresTable = document.getElementById('final-scores-table');
+            scoresTable.innerHTML = '';
+
+            // Sort players by score
+            const sortedPlayers = Object.entries(data.scores)
+                .sort((a, b) => b[1] - a[1])
+                .map(([username, score], index) => ({ username, score, rank: index + 1 }));
+
+            sortedPlayers.forEach(player => {
+                const row = document.createElement('tr');
+
+                // Add classes for top 3 places
+                if (player.rank === 1) row.className = 'first-place';
+                else if (player.rank === 2) row.className = 'second-place';
+                else if (player.rank === 3) row.className = 'third-place';
+
+                row.innerHTML = `
+                    <td>${player.rank}</td>
+                    <td>${player.username}</td>
+                    <td>${player.score}</td>
+                `;
+
+                scoresTable.appendChild(row);
+            });
+
+            // Redirect to game board after delay
+            setTimeout(function() {
+                window.location.href = '/display';
+            }, 10000);
+        });
+        
+        // Render player grid
+        function renderPlayerGrid() {
+            const container = document.getElementById('players-container');
+            container.innerHTML = '';
+            
+            players.forEach(player => {
+                if (player.username === 'admin') return;
+                
+                const playerCard = document.createElement('div');
+                playerCard.className = 'player-card';
+                playerCard.setAttribute('data-username', player.username);
+                
+                playerCard.innerHTML = `
+                    <div class="player-name">${player.username}</div>
+                    <div class="player-score">0</div>
+                    <div class="score-label">High Score</div>
+                `;
+                
+                container.appendChild(playerCard);
+            });
+        }
+        
+        // Update player score
+        function updatePlayerScore(username, score) {
+            const playerCard = document.querySelector(`.player-card[data-username="${username}"]`);
+            if (!playerCard) return;
+            
+            const scoreElement = playerCard.querySelector('.player-score');
+            
+            // Animate score change
+            if (parseInt(scoreElement.textContent) < score) {
+                // Score increased, animate
+                scoreElement.style.color = '#2ecc71';
+                setTimeout(() => {
+                    scoreElement.style.color = '#3498db';
+                }, 1000);
+            }
+            
+            scoreElement.textContent = score;
+        }
+
+        // Display refresh event listeners
+        socket.on('display_refresh', function() {
+            console.log('Display refresh event received');
+            window.location.reload();
+        });
+
+        socket.on('admin_refresh_display', function() {
+            console.log('Admin refresh display event received');
+            window.location.reload();
+        });
+
+        // Admin navigation event listeners
+        socket.on('admin_display_goto_game_board', function() {
+            console.log('Admin navigation: goto game board');
+            window.location.href = '/display';
+        });
+
+        socket.on('admin_display_goto_waiting_room', function() {
+            console.log('Admin navigation: goto waiting room');
+            window.location.href = '/display';
+        });
+    </script>
+</body>
+</html>

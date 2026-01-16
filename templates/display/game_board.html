@@ -1,0 +1,1944 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Board - Game Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #2c3e50;
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+        }
+
+        .game-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .game-title {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            margin: 0 auto;
+            max-width: 1200px;
+        }
+
+        .category {
+            text-align: center;
+            padding: 1.5rem 1rem;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 1.3rem;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            background-color: #3498db;
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .question {
+            text-align: center;
+            padding: 2rem 1rem;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 2rem;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+            cursor: pointer;
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .question:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        .question.taken {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .question.taken:hover {
+            transform: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Category colors */
+        .category-1,
+        .question-1 {
+            background-color: #3498db;
+        }
+
+        .category-2,
+        .question-2 {
+            background-color: #2ecc71;
+        }
+
+        .category-3,
+        .question-3 {
+            background-color: #e74c3c;
+        }
+
+        .category-4,
+        .question-4 {
+            background-color: #f39c12;
+        }
+
+        .category-5,
+        .question-5 {
+            background-color: #9b59b6;
+        }
+
+        .question-1.taken {
+            background-color: #2980b9;
+        }
+
+        .question-2.taken {
+            background-color: #27ae60;
+        }
+
+        .question-3.taken {
+            background-color: #c0392b;
+        }
+
+        .question-4.taken {
+            background-color: #d35400;
+        }
+
+        .question-5.taken {
+            background-color: #8e44ad;
+        }
+
+
+        .question-content {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #2c3e50;
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s;
+        }
+
+        .question-content.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .question-header {
+            background-color: #34495e;
+            padding: 1.5rem;
+            text-align: center;
+            border-bottom: 3px solid #3498db;
+        }
+
+        .question-content-inner {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            padding: 2rem;
+            text-align: center;
+            overflow-y: auto;
+        }
+
+        .question-text-fixed {
+            font-size: 4rem;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 3rem;
+            text-align: center;
+            width: 100%;
+        }
+
+        .multi-item-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 4rem;
+            width: 100%;
+            flex: 1;
+        }
+
+        .multi-item-container.two-column-mode {
+            align-items: flex-start;
+        }
+
+        .multi-item-column {
+            width: 550px;
+            min-width: 550px;
+            max-width: 550px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .multi-item-column.align-top {
+            justify-content: flex-start;
+        }
+
+        .multi-item-list {
+            list-style-position: inside;
+            padding: 0;
+            margin: 0;
+            font-size: 2rem;
+            text-align: left;
+            width: 100%;
+        }
+
+        .multi-item-list li {
+            margin-bottom: 1.5rem;
+            line-height: 1.4;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+        }
+
+        .multi-item-image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            width: 100%;
+            max-width: 1200px;
+            padding: 2rem;
+        }
+
+        .grid-image {
+            width: auto;
+            height: 66vh;
+            max-width: 100%;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            transition: height 0.5s ease-in-out;
+        }
+
+        .buzzed-player-display {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background-color: #e74c3c;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            display: none;
+            z-index: 101;
+        }
+
+        .question-title {
+            font-size: 3rem;
+            margin-bottom: 0;
+            color: white;
+        }
+
+        .question-body {
+            font-size: 4rem;
+            color: white;
+            max-width: none;
+            line-height: 1.2;
+        }
+
+        .media-container {
+            margin: 2rem 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .media-player {
+            width: auto;
+            height: 66vh;
+            max-width: 100%;
+            border-radius: 10px;
+            object-fit: contain;
+            transition: height 0.5s ease-in-out;
+        }
+
+        .audio-player {
+            width: 100%;
+            max-width: 800px;
+            height: 60px;
+        }
+
+        .spotify-player {
+            width: 100%;
+            max-width: 800px;
+            height: 200px;
+            border-radius: 12px;
+        }
+
+
+        .close-button {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            padding: 0.75rem 2rem;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            z-index: 102;
+        }
+
+        .close-button:hover {
+            background-color: #2980b9;
+        }
+
+        /* Buzzer alert animation */
+        .buzzer-alert {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0;
+            box-shadow: inset 0 0 0 15px #e74c3c;
+            border-radius: 15px;
+            animation: buzzerBlink 1s ease-in-out;
+        }
+
+        @keyframes buzzerBlink {
+            0%, 16.67%, 33.33%, 50%, 66.67%, 83.33% {
+                opacity: 0;
+            }
+            8.33%, 25%, 41.67%, 58.33%, 75%, 91.67% {
+                opacity: 1;
+            }
+            100% {
+                opacity: 0;
+            }
+        }
+
+        /* Silhouette game styles */
+        .silhouette-game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            margin: 2rem auto;
+        }
+
+        .silhouette-image-wrapper {
+            width: 600px;
+            height: 600px;
+            background-color: white;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .silhouette-image {
+            max-width: 580px;
+            max-height: 580px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            filter: brightness(0);
+            clip-path: circle(0% at 50% 50%);
+        }
+
+        /* Growing circle animation - reveals black silhouette */
+        .silhouette-image.growing {
+            animation: circle-grow 20s linear forwards;
+        }
+
+        .silhouette-image.paused {
+            animation-play-state: paused;
+        }
+
+        @keyframes circle-grow {
+            from { clip-path: circle(0% at 50% 50%); }
+            to { clip-path: circle(75% at 50% 50%); }
+        }
+
+        /* Color reveal animation - fade from black to actual colors */
+        .silhouette-image.revealing-color {
+            animation: color-reveal 12.5s linear forwards;
+        }
+
+        @keyframes color-reveal {
+            from { filter: brightness(0); }
+            to { filter: brightness(1); }
+        }
+
+        .silhouette-answer {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #2ecc71;
+            text-shadow: 0 0 30px rgba(46, 204, 113, 0.9);
+            margin-top: 2rem;
+            text-align: center;
+            padding: 1.5rem 3rem;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            border: 3px solid #2ecc71;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div class="game-header">
+        <h1 class="game-title">Game Board</h1>
+    </div>
+
+    <div class="game-board" id="game-board">
+        <!-- Dynamic content will be loaded here -->
+    </div>
+
+    <!-- Question Content Modal -->
+    <div class="question-content" id="question-content">
+        <div class="question-header">
+            <h2 class="question-title" id="question-title">Question Title</h2>
+        </div>
+        <div class="question-content-inner">
+            <div class="question-body" id="question-body">Question content goes here...</div>
+        </div>
+        <button class="close-button" id="close-button">Close</button>
+    </div>
+
+    <!-- Buzzed Player Display -->
+    <div class="buzzed-player-display" id="buzzed-player-display">
+        <span id="buzzed-player-name">Player Name</span> buzzed!
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+    <!-- Load Socket utility after Socket.IO is loaded -->
+    <script src="{{ url_for('static', filename='js/socket-utility.js') }}"></script>
+    <script>
+        const socket = SocketManager.init();
+        const gameBoard = document.getElementById('game-board');
+        const questionContent = document.getElementById('question-content');
+        const questionTitle = document.getElementById('question-title');
+        const questionBody = document.getElementById('question-body');
+        const closeButton = document.getElementById('close-button');
+
+        // Movie guesser winners tracking
+        let movieWinners = [];
+        let currentQuestionIsMovie = false;
+
+        // Add socket connection indicator
+        const socketStatusIndicator = document.createElement('div');
+        socketStatusIndicator.className = 'position-fixed bottom-0 end-0 p-3';
+        socketStatusIndicator.innerHTML = '<span class="badge bg-danger socket-status">Disconnected</span>';
+        document.body.appendChild(socketStatusIndicator);
+
+        // Add debug info panel
+        const debugPanel = document.createElement('div');
+        debugPanel.className = 'position-fixed bottom-0 start-0 p-3 bg-dark text-white small';
+        debugPanel.style.maxWidth = '300px';
+        debugPanel.style.opacity = '0.7';
+        debugPanel.innerHTML = '<h6>Debug Info</h6><div id="debug-log"></div>';
+        document.body.appendChild(debugPanel);
+
+        socket.on('display_refresh', function () {
+            console.log('Display refresh event received');
+            window.location.reload();
+        });
+
+        function logDebug(message) {
+            const debugLog = document.getElementById('debug-log');
+            const entry = document.createElement('div');
+            entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            debugLog.appendChild(entry);
+            // Keep only the latest 10 messages
+            while (debugLog.children.length > 10) {
+                debugLog.removeChild(debugLog.firstChild);
+            }
+        }
+
+        // Listen for correct movie guesses
+        socket.on('player_guessed_correct', function(data) {
+            console.log('Player guessed correct:', data);
+            if (!currentQuestionIsMovie) return;
+
+            // Add to winners list
+            movieWinners.push({
+                username: data.username,
+                round: data.round,
+                answer: data.answer
+            });
+
+            // Update display
+            updateMovieWinnersList();
+        });
+
+        // Update movie winners list (in question content area)
+        function updateMovieWinnersList() {
+            const winnersContainer = document.getElementById('movie-winners-container');
+            if (!winnersContainer) return;
+
+            if (movieWinners.length === 0) {
+                winnersContainer.innerHTML = '';
+                return;
+            }
+
+            // Sort by round (earliest first)
+            movieWinners.sort((a, b) => a.round - b.round);
+
+            let html = '<div style="margin-top: 1.5rem; padding: 0.75rem 1rem; background-color: rgba(40, 167, 69, 0.15); border-radius: 6px; border: 1px solid rgba(40, 167, 69, 0.4);">';
+            html += '<div style="color: #28a745; margin-bottom: 0.5rem; font-size: 1.3rem; font-weight: bold;">✓ Correct Guesses</div>';
+            html += '<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.3rem; font-size: 1.1rem; max-height: 280px; overflow-y: auto;">';
+
+            movieWinners.forEach((winner, index) => {
+                html += `
+                    <div style="color: white; padding: 0.2rem 0.5rem;">
+                        ${winner.username} - Round ${winner.round}
+                    </div>
+                `;
+            });
+
+            html += '</div></div>';
+            winnersContainer.innerHTML = html;
+        }
+
+        // Game board state
+        const boardState = {
+            questions: {},
+            categories: {}
+        };
+
+        // Connect to the server
+        socket.on('connect', async function () {
+            console.log('Display connected to server');
+            logDebug('Socket connected');
+            document.querySelector('.socket-status').className = 'badge bg-success socket-status';
+            document.querySelector('.socket-status').textContent = 'Connected';
+
+            // Load the game board (wait for it to complete)
+            await loadGameBoard();
+
+            // Request current board state (only after board is loaded)
+            socket.emit('get_board_state');
+        });
+
+
+        socket.on('disconnect', function () {
+            console.log('Disconnected from server');
+            logDebug('Socket disconnected');
+            document.querySelector('.socket-status').className = 'badge bg-danger socket-status';
+            document.querySelector('.socket-status').textContent = 'Disconnected';
+        });
+
+
+        // Load board state from server
+        socket.on('game_board_state', function (data) {
+            // Update board state
+            Object.assign(boardState, data);
+
+            // Update UI based on state
+            updateBoardUI();
+        });
+
+        // Handle question selected
+        socket.on('question_selected', function (data) {
+            const { category, value, question, answer, questionData, currentItemIndex, totalItems } = data;
+
+            // Mark question as taken
+            boardState.questions[`${category}-${value}`] = true;
+
+            // Update UI
+            updateBoardUI();
+
+            // Store multi-item data
+            boardState.currentItemIndex = currentItemIndex || 0;
+            boardState.totalItems = totalItems || 1;
+
+            // Check if this is a movie question
+            const isMovieQuestion = questionData && questionData.movie_id;
+            currentQuestionIsMovie = isMovieQuestion;
+
+            // Reset movie winners for new question
+            if (isMovieQuestion) {
+                movieWinners = [];
+            }
+
+            // Show question content
+            showQuestionContent(category, value, question, answer, questionData, currentItemIndex, totalItems);
+        });
+
+        // Handle item changes for multi-item questions
+        socket.on('item_changed', function (data) {
+            const { currentItemIndex, totalItems, questionData } = data;
+
+            // Update stored state
+            boardState.currentItemIndex = currentItemIndex;
+            boardState.totalItems = totalItems;
+
+            // Update the display based on question type
+            updateMultiItemDisplay(questionData, currentItemIndex, totalItems);
+        });
+
+        // Load game board from server
+        async function loadGameBoard() {
+            try {
+                const response = await fetch('/api/current_session');
+                if (!response.ok) {
+                    console.error('Failed to load session data');
+                    loadDefaultBoard();
+                    return;
+                }
+                
+                const sessionData = await response.json();
+                console.log('Session data loaded:', sessionData);
+                console.log('Session name:', sessionData.name);
+                console.log('Total categories:', sessionData.categories.length);
+                
+                // Store categories and full session data for reference
+                boardState.categories = {};
+                boardState.sessionData = sessionData;
+                sessionData.categories.forEach(cat => {
+                    boardState.categories[cat.position] = cat.category_name;
+                });
+                
+                // Build the board HTML
+                buildBoardHTML(sessionData);
+                
+                // Initialize interactions
+                initializeBoard();
+                
+            } catch (error) {
+                console.error('Error loading game board:', error);
+                loadDefaultBoard();
+            }
+        }
+
+        // Build the board HTML from session data
+        function buildBoardHTML(sessionData) {
+            const gameBoard = document.getElementById('game-board');
+            let html = '';
+            
+            // Categories row
+            sessionData.categories.forEach((category, index) => {
+                html += `<div class="category category-${category.position}">${category.category_name}</div>`;
+            });
+            
+            // Questions rows (5 rows of questions)
+            for (let row = 1; row <= 5; row++) {
+                sessionData.categories.forEach((category, index) => {
+                    const value = row * 100;
+                    html += `<div class="question question-${category.position}" data-category="${category.position}" data-value="${value}">${value}</div>`;
+                });
+            }
+            
+            gameBoard.innerHTML = html;
+        }
+
+
+        // Fallback to default board if session data fails
+        function loadDefaultBoard() {
+            const gameBoard = document.getElementById('game-board');
+            const defaultCategories = ['Science', 'History', 'Geography', 'Entertainment', 'Sports'];
+            
+            let html = '';
+            
+            // Categories
+            defaultCategories.forEach((name, index) => {
+                const pos = index + 1;
+                html += `<div class="category category-${pos}">${name}</div>`;
+                boardState.categories[pos] = name;
+            });
+            
+            // Questions
+            for (let row = 1; row <= 5; row++) {
+                for (let col = 1; col <= 5; col++) {
+                    const value = row * 100;
+                    html += `<div class="question question-${col}" data-category="${col}" data-value="${value}">${value}</div>`;
+                }
+            }
+            
+            gameBoard.innerHTML = html;
+            initializeBoard();
+        }
+
+        // Initialize game board
+        function initializeBoard() {
+            // Add click handlers to questions
+            const questionElements = document.querySelectorAll('.question');
+            questionElements.forEach(function (element) {
+                element.addEventListener('click', function () {
+                    if (element.classList.contains('taken')) return;
+
+                    const category = element.getAttribute('data-category');
+                    const value = element.getAttribute('data-value');
+
+                    // Emit question selected event
+                    socket.emit('select_question', {
+                        category: category,
+                        value: value
+                    });
+                });
+            });
+
+            // Add close button handler
+            closeButton.addEventListener('click', function () {
+                hideQuestionContent();
+            });
+        }
+
+        // Update board UI based on state
+        function updateBoardUI() {
+            const questionElements = document.querySelectorAll('.question');
+            questionElements.forEach(function (element) {
+                const category = element.getAttribute('data-category');
+                const value = element.getAttribute('data-value');
+                const key = `${category}-${value}`;
+
+                if (boardState.questions[key]) {
+                    element.classList.add('taken');
+                } else {
+                    element.classList.remove('taken');
+                }
+            });
+        }
+
+        // Show question content
+        function showQuestionContent(category, value, question, answer, questionData = {}, currentItemIndex = 0, totalItems = 1) {
+            console.log('showQuestionContent called with:', {
+                category, value, question, questionData, currentItemIndex, totalItems
+            });
+
+            // Set content
+            questionTitle.textContent = `${getCategoryName(category)} - ${value}`;
+
+            // Build question content based on type and multi-item status
+            let contentHTML = '';
+
+            console.log('Question type:', questionData.question_type);
+            console.log('Multi-item:', questionData.multi_item);
+            console.log('Media URL:', questionData.media_url);
+
+            // Handle multi-item questions
+            // multi_item: 0 = cumulative display (add items), 1 = replacement display (replace items)
+            if (questionData && questionData.items && questionData.items.length > 0) {
+                contentHTML += `<div class="question-text-fixed">${question}</div>`;
+                if (questionData.multi_item === 1) {
+                    // Replacement: show only current item_order group
+                    contentHTML += buildItemGroupDisplay(questionData, currentItemIndex);
+                } else {
+                    // Cumulative: show all item_order groups from 0 to currentItemIndex
+                    contentHTML += buildCumulativeItemsDisplay(questionData, currentItemIndex);
+                }
+            } else {
+                // Single item question - original behavior
+                contentHTML += `<div class="question-text-fixed">${question}</div>`;
+
+                if (questionData && questionData.question_type && questionData.question_type !== 'text') {
+                    console.log('Creating media content for type:', questionData.question_type);
+                    const mediaContent = createDisplayOnlyMediaContent(questionData);
+                    console.log('Generated media HTML:', mediaContent);
+                    contentHTML += mediaContent;
+
+                    // Store current Spotify track ID if this is a Spotify question
+                    if (questionData.spotify_track_id) {
+                        currentSpotifyTrackId = questionData.spotify_track_id;
+                        console.log('Set current Spotify track ID:', currentSpotifyTrackId);
+                        updateSpotifyStatus('');
+                    }
+                } else {
+                    console.log('No media content needed - question type is text or no questionData');
+                }
+            }
+
+            console.log('Final content HTML:', contentHTML);
+
+            // Add movie winners container for movie questions
+            if (questionData && questionData.movie_id) {
+                contentHTML += '<div id="movie-winners-container"></div>';
+            }
+
+            // Add input results container for input questions
+            if (questionData && questionData.input_expected) {
+                contentHTML += '<div id="input-results-container"></div>';
+            }
+
+            // Add ordering results container for ordering questions
+            if (questionData && questionData.order_items && questionData.order_items.length > 0) {
+                contentHTML += '<div id="ordering-results-container"></div>';
+            }
+
+            // Add sorting results container for This or That questions
+            if (questionData && questionData.question_type === 'tt') {
+                contentHTML += '<div id="sorting-results-container"></div>';
+            }
+
+            questionBody.innerHTML = contentHTML;
+
+            // Update movie winners if this is a movie question
+            if (questionData && questionData.movie_id) {
+                updateMovieWinnersList();
+            }
+
+            // Show modal with header only (hide content initially)
+            questionContent.classList.add('active');
+
+            // Hide the question body initially - wait for admin to reveal
+            const questionContentInner = document.querySelector('.question-content-inner');
+            if (questionContentInner) {
+                questionContentInner.style.display = 'none';
+            }
+
+            // Debug: Check if media elements were created
+            setTimeout(() => {
+                console.log('Media elements after DOM update:', {
+                    audio: !!document.getElementById('question-audio'),
+                    video: !!document.getElementById('question-video')
+                });
+            }, 100);
+        }
+
+        // Build cumulative display for multi_item = 0 (show items from order 0 to currentItemIndex)
+        function buildCumulativeItemsDisplay(questionData, currentItemIndex) {
+            const itemsByOrder = questionData.items_by_order || {};
+            const orderSequence = questionData.order_sequence || [];
+
+            if (orderSequence.length === 0) {
+                return '<div class="multi-item-container"><div class="multi-item-column">No items to display</div></div>';
+            }
+
+            // Collect all items from order_sequence[0] to order_sequence[currentItemIndex]
+            const itemsToShow = [];
+            for (let i = 0; i <= currentItemIndex && i < orderSequence.length; i++) {
+                const order = orderSequence[i];
+                const itemsInGroup = itemsByOrder[order] || [];
+                itemsToShow.push(...itemsInGroup);
+            }
+
+            if (itemsToShow.length === 0) {
+                return '<div class="multi-item-container"><div class="multi-item-column">No items to display</div></div>';
+            }
+
+            // Check if items contain images (based on question_type or file extensions)
+            const hasImages = questionData.question_type === 'image' ||
+                              itemsToShow.some(item => isImagePath(item.item_text));
+
+            if (hasImages) {
+                // Display images in a grid
+                let html = '<div class="multi-item-container">';
+                html += '<div class="multi-item-image-grid">';
+                itemsToShow.forEach(item => {
+                    const imagePath = buildImagePath(questionData, item.item_text);
+                    html += `<img src="${imagePath}" alt="Question Image" class="grid-image" />`;
+                });
+                html += '</div>';
+                html += '</div>';
+                return html;
+            } else {
+                // Display text items in columns
+                const maxItemsInLeftColumn = 6;
+                const useTwoColumns = itemsToShow.length > maxItemsInLeftColumn;
+
+                // Add two-column-mode class to container when needed
+                let html = useTwoColumns
+                    ? '<div class="multi-item-container two-column-mode">'
+                    : '<div class="multi-item-container">';
+
+                if (useTwoColumns) {
+                    const leftItems = itemsToShow.slice(0, maxItemsInLeftColumn);
+                    const rightItems = itemsToShow.slice(maxItemsInLeftColumn);
+
+                    // Left column
+                    html += '<div class="multi-item-column align-top"><ul class="multi-item-list">';
+                    leftItems.forEach(item => {
+                        html += `<li>${item.item_text}</li>`;
+                    });
+                    html += '</ul></div>';
+
+                    // Right column
+                    html += '<div class="multi-item-column align-top"><ul class="multi-item-list">';
+                    rightItems.forEach(item => {
+                        html += `<li>${item.item_text}</li>`;
+                    });
+                    html += '</ul></div>';
+                } else {
+                    // Single column (centered)
+                    html += '<div class="multi-item-column"><ul class="multi-item-list">';
+                    itemsToShow.forEach(item => {
+                        html += `<li>${item.item_text}</li>`;
+                    });
+                    html += '</ul></div>';
+                }
+
+                html += '</div>';
+                return html;
+            }
+        }
+
+        // Build display for item group at current index (multi_item = 1)
+        function buildItemGroupDisplay(questionData, currentItemIndex) {
+            const itemsByOrder = questionData.items_by_order || {};
+            const orderSequence = questionData.order_sequence || [];
+
+            if (orderSequence.length === 0) {
+                return '<div class="multi-item-container"><div class="multi-item-column">No items to display</div></div>';
+            }
+
+            // Get the item_order value for the current index
+            const currentOrder = orderSequence[currentItemIndex];
+            const itemsInGroup = itemsByOrder[currentOrder] || [];
+
+            if (itemsInGroup.length === 0) {
+                return '<div class="multi-item-container"><div class="multi-item-column">No items to display</div></div>';
+            }
+
+            // Check if this group contains images
+            const hasImages = questionData.question_type === 'image' ||
+                              itemsInGroup.some(item => isImagePath(item.item_text));
+
+            if (hasImages) {
+                // Display images in a grid
+                let html = '<div class="multi-item-container">';
+                html += '<div class="multi-item-image-grid">';
+                itemsInGroup.forEach(item => {
+                    const imagePath = buildImagePath(questionData, item.item_text);
+                    html += `<img src="${imagePath}" alt="Question Image" class="grid-image" />`;
+                });
+                html += '</div>';
+                html += '</div>';
+                return html;
+            } else {
+                // Display text items in columns
+                const maxItemsInLeftColumn = 6;
+                const useTwoColumns = itemsInGroup.length > maxItemsInLeftColumn;
+
+                // Add two-column-mode class to container when needed
+                let html = useTwoColumns
+                    ? '<div class="multi-item-container two-column-mode">'
+                    : '<div class="multi-item-container">';
+
+                if (useTwoColumns) {
+                    const leftItems = itemsInGroup.slice(0, maxItemsInLeftColumn);
+                    const rightItems = itemsInGroup.slice(maxItemsInLeftColumn);
+
+                    // Left column
+                    html += '<div class="multi-item-column align-top"><ul class="multi-item-list">';
+                    leftItems.forEach(item => {
+                        html += `<li>${item.item_text}</li>`;
+                    });
+                    html += '</ul></div>';
+
+                    // Right column
+                    html += '<div class="multi-item-column align-top"><ul class="multi-item-list">';
+                    rightItems.forEach(item => {
+                        html += `<li>${item.item_text}</li>`;
+                    });
+                    html += '</ul></div>';
+                } else {
+                    // Single column (centered)
+                    html += '<div class="multi-item-column"><ul class="multi-item-list">';
+                    itemsInGroup.forEach(item => {
+                        html += `<li>${item.item_text}</li>`;
+                    });
+                    html += '</ul></div>';
+                }
+
+                html += '</div>';
+                return html;
+            }
+        }
+
+        // Helper function to check if a path is an image
+        function isImagePath(path) {
+            if (!path) return false;
+            const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg'];
+            return imageExtensions.some(ext => path.toLowerCase().endsWith(ext));
+        }
+
+        // Helper function to build image path
+        function buildImagePath(questionData, itemText) {
+            // If item_text is already a full path, use it
+            if (itemText.startsWith('/') || itemText.startsWith('http')) {
+                return itemText;
+            }
+            // Otherwise, combine with media_url if available
+            const mediaUrl = questionData.media_url || '';
+            if (mediaUrl) {
+                return `${mediaUrl.replace(/\/$/, '')}/${itemText}`;
+            }
+            return itemText;
+        }
+
+        // Update multi-item display when item changes
+        function updateMultiItemDisplay(questionData, currentItemIndex, totalItems) {
+            if (!questionData || !questionData.items || questionData.items.length === 0) {
+                return;
+            }
+
+            let contentHTML = '';
+            contentHTML += `<div class="question-text-fixed">${questionData.question_text}</div>`;
+
+            if (questionData.multi_item === 1) {
+                // Replacement: show only current item_order group
+                contentHTML += buildItemGroupDisplay(questionData, currentItemIndex);
+            } else {
+                // Cumulative: show all item_order groups from 0 to currentItemIndex
+                contentHTML += buildCumulativeItemsDisplay(questionData, currentItemIndex);
+            }
+
+            // Add movie winners container for movie questions
+            if (questionData && questionData.movie_id) {
+                contentHTML += '<div id="movie-winners-container"></div>';
+            }
+
+            // Add input results container for input questions
+            if (questionData && questionData.input_expected) {
+                contentHTML += '<div id="input-results-container"></div>';
+            }
+
+            // Add ordering results container for ordering questions
+            if (questionData && questionData.order_items && questionData.order_items.length > 0) {
+                contentHTML += '<div id="ordering-results-container"></div>';
+            }
+
+            // Add sorting results container for This or That questions
+            if (questionData && questionData.question_type === 'tt') {
+                contentHTML += '<div id="sorting-results-container"></div>';
+            }
+
+            questionBody.innerHTML = contentHTML;
+
+            // Update movie winners if this is a movie question
+            if (questionData && questionData.movie_id) {
+                updateMovieWinnersList();
+            }
+        }
+
+        // Dynamic image resize function
+        function resizeImagesForResults() {
+            // Wait for DOM to update and measure the results containers
+            setTimeout(() => {
+                const inputResults = document.getElementById('input-results-container');
+                const orderingResults = document.getElementById('ordering-results-container');
+                const sortingResults = document.getElementById('sorting-results-container');
+                const movieWinners = document.getElementById('movie-winners-container');
+                const questionHeader = document.querySelector('.question-header');
+                const questionContentInner = document.querySelector('.question-content-inner');
+                const questionText = document.querySelector('.question-text-fixed');
+
+                let resultsHeight = 0;
+                let headerHeight = 0;
+                let questionTextHeight = 0;
+
+                // Measure header height
+                if (questionHeader) {
+                    headerHeight = questionHeader.offsetHeight;
+                }
+
+                // Measure question text height
+                if (questionText) {
+                    questionTextHeight = questionText.offsetHeight;
+                }
+
+                // Measure results containers (whichever is visible)
+                if (inputResults && inputResults.offsetHeight > 0) {
+                    resultsHeight += inputResults.offsetHeight;
+                }
+                if (orderingResults && orderingResults.offsetHeight > 0) {
+                    resultsHeight += orderingResults.offsetHeight;
+                }
+                if (sortingResults && sortingResults.offsetHeight > 0) {
+                    resultsHeight += sortingResults.offsetHeight;
+                }
+                if (movieWinners && movieWinners.offsetHeight > 0) {
+                    resultsHeight += movieWinners.offsetHeight;
+                }
+
+                // Only resize if there are results to display
+                if (resultsHeight > 0) {
+                    // Get viewport height
+                    const viewportHeight = window.innerHeight;
+
+                    // Get computed padding from question-content-inner (2rem top + 2rem bottom)
+                    let contentPadding = 64; // Default: 2rem * 2 = 32px * 2
+                    if (questionContentInner) {
+                        const styles = window.getComputedStyle(questionContentInner);
+                        const paddingTop = parseFloat(styles.paddingTop) || 0;
+                        const paddingBottom = parseFloat(styles.paddingBottom) || 0;
+                        contentPadding = paddingTop + paddingBottom;
+                    }
+
+                    // Additional safety margin for:
+                    // - question text margin-bottom (3rem ≈ 48px)
+                    // - results margin-top (1.5rem ≈ 24px)
+                    // - general spacing and borders
+                    const additionalMargin = 100;
+
+                    const totalOverhead = headerHeight + resultsHeight + questionTextHeight + contentPadding + additionalMargin;
+                    const availableHeight = viewportHeight - totalOverhead;
+
+                    // Calculate new image height with a minimum of 150px
+                    const newImageHeight = Math.max(150, availableHeight);
+
+                    console.log('Image resize calculation (detailed):', {
+                        viewportHeight,
+                        headerHeight,
+                        resultsHeight,
+                        questionTextHeight,
+                        contentPadding,
+                        additionalMargin,
+                        totalOverhead,
+                        availableHeight,
+                        newImageHeight
+                    });
+
+                    // Apply to all images (both single and grid)
+                    const mediaImages = document.querySelectorAll('.media-player');
+                    const gridImages = document.querySelectorAll('.grid-image');
+
+                    mediaImages.forEach(img => {
+                        img.style.height = `${newImageHeight}px`;
+                        img.style.maxHeight = `${newImageHeight}px`;
+                    });
+
+                    gridImages.forEach(img => {
+                        img.style.height = `${newImageHeight}px`;
+                        img.style.maxHeight = `${newImageHeight}px`;
+                    });
+
+                    console.log(`Resized ${mediaImages.length + gridImages.length} images to ${newImageHeight}px`);
+                }
+            }, 150); // Slightly longer delay to ensure all rendering is complete
+        }
+
+        // Create display-only media content HTML (no controls)
+        function createDisplayOnlyMediaContent(questionData) {
+            const { question_type, media_url, spotify_track_id } = questionData;
+            console.log('createDisplayOnlyMediaContent:', { question_type, media_url, spotify_track_id });
+            
+            let mediaHTML = '<div class="media-container">';
+            
+            switch (question_type) {
+                case 'image':
+                    if (media_url) {
+                        mediaHTML += `<img src="${media_url}" alt="Question Image" class="media-player" />`;
+                    }
+                    break;
+                    
+                case 'audio':
+                    if (media_url) {
+                        mediaHTML += `
+                            <audio id="question-audio" class="audio-player">
+                                <source src="${media_url}" type="audio/mpeg">
+                                <source src="${media_url}" type="audio/wav">
+                                <source src="${media_url}" type="audio/ogg">
+                                Your browser does not support the audio element.
+                            </audio>
+                        `;
+                    } else if (spotify_track_id) {
+                        mediaHTML += `
+                            <div id="question-audio" class="spotify-player">
+                                <div class="spotify-player-info">
+                                    <div class="spotify-player-title">Spotify Track</div>
+                                    <div class="spotify-player-status" id="spotify-status"></div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    break;
+                    
+                case 'video':
+                    if (media_url) {
+                        mediaHTML += `
+                            <video id="question-video" class="media-player">
+                                <source src="${media_url}" type="video/mp4">
+                                <source src="${media_url}" type="video/webm">
+                                <source src="${media_url}" type="video/ogg">
+                                Your browser does not support the video element.
+                            </video>
+                        `;
+                    }
+                    break;
+
+                case 'silhouette':
+                    if (media_url) {
+                        mediaHTML += `
+                            <div class="silhouette-game-container">
+                                <div class="silhouette-image-wrapper">
+                                    <img id="silhouette-image" class="silhouette-image" src="${media_url}" alt="Silhouette">
+                                </div>
+                                <div id="silhouette-answer" class="silhouette-answer d-none"></div>
+                            </div>
+                        `;
+                    }
+                    break;
+            }
+
+            mediaHTML += '</div>';
+            return mediaHTML;
+        }
+
+        // Spotify variables
+        let currentSpotifyTrackId = null;
+        
+        function updateSpotifyStatus(status) {
+            const statusElement = document.getElementById('spotify-status');
+            if (statusElement) {
+                statusElement.textContent = status;
+            }
+        }
+        
+        
+        
+        // Listen for admin-controlled media events (manual controls only)
+        socket.on('admin_media_control', function(data) {
+            const { action, mediaType, trackId } = data;
+            console.log('Display received admin media control:', action, 'for type:', mediaType, 'trackId:', trackId);
+            
+            // For Spotify tracks, update status display (server handles actual control)
+            if (mediaType === 'audio' && trackId) {
+                updateSpotifyStatus('');
+                return;
+            }
+            
+            // Handle regular audio/video elements
+            let mediaElement = null;
+            if (mediaType === 'audio') {
+                mediaElement = document.getElementById('question-audio');
+            } else if (mediaType === 'video') {
+                mediaElement = document.getElementById('question-video');
+            }
+            
+            console.log('Media element found:', !!mediaElement, 'Element:', mediaElement);
+            
+            if (mediaElement && mediaElement.tagName && (mediaElement.tagName.toLowerCase() === 'audio' || mediaElement.tagName.toLowerCase() === 'video')) {
+                console.log('Media element src:', mediaElement.src || 'No src set');
+                console.log('Media element sources:', mediaElement.querySelectorAll('source').length);
+                
+                switch(action) {
+                    case 'play':
+                        console.log('Attempting to play media...');
+                        if (mediaElement.tagName.toLowerCase() === 'video') {
+                            // For videos, enter fullscreen mode
+                            enterVideoFullscreen(mediaElement);
+                        } else {
+                            // For audio, just play normally
+                            mediaElement.play()
+                                .then(() => console.log('Audio play successful'))
+                                .catch(e => console.log('Audio play failed:', e));
+                        }
+                        break;
+                    case 'pause':
+                        console.log('Pausing media...');
+                        mediaElement.pause();
+                        if (mediaElement.tagName.toLowerCase() === 'video') {
+                            exitVideoFullscreen(mediaElement);
+                        }
+                        break;
+                    case 'stop':
+                        console.log('Stopping media...');
+                        mediaElement.pause();
+                        mediaElement.currentTime = 0;
+                        if (mediaElement.tagName.toLowerCase() === 'video') {
+                            exitVideoFullscreen(mediaElement);
+                        }
+                        break;
+                }
+            } else {
+                console.log('No compatible media element found for type:', mediaType);
+                console.log('Available elements:', {
+                    audio: !!document.getElementById('question-audio'),
+                    video: !!document.getElementById('question-video')
+                });
+            }
+        });
+
+        // Listen for buzzer events to show visual feedback
+        socket.on('buzzer_player_buzzed', function(data) {
+            console.log('Player buzzed:', data.username);
+            showBuzzerAlert();
+            showBuzzedPlayer(data.username);
+        });
+
+        // Listen for buzzer reset to hide player display
+        socket.on('buzzer_reset', function() {
+            hideBuzzedPlayer();
+        });
+
+        // Listen for players returning to game board
+        socket.on('return_to_game_board', function() {
+            hideBuzzedPlayer();
+            hideQuestionContent();
+        });
+
+        // Listen for admin reveal question event
+        socket.on('reveal_question', function() {
+            console.log('Admin revealed question - showing content');
+            const questionContentInner = document.querySelector('.question-content-inner');
+            if (questionContentInner) {
+                questionContentInner.style.display = 'flex';
+            }
+        });
+
+        // Game started handler - redirect to display route which will show the correct game
+        socket.on('game_started', function(data) {
+            console.log('Game started:', data.game);
+            window.location.href = '/display';
+        });
+
+        // Navigation handlers
+        socket.on('admin_display_goto_game_board', function() {
+            console.log('Admin navigation: goto game board');
+            window.location.href = '/display';
+        });
+
+        socket.on('admin_display_goto_waiting_room', function() {
+            console.log('Admin navigation: goto waiting room');
+            window.location.href = '/display';
+        });
+
+        // Listen for input question results
+        socket.on('input_question_results', function(data) {
+            console.log('Input question results received:', data);
+            displayInputResults(data);
+        });
+
+        // Listen for ordering game results
+        socket.on('ordering_results', function(data) {
+            console.log('Ordering results received:', data);
+            displayOrderingResults(data);
+        });
+
+        // Listen for Top 5 results
+        socket.on('top_5_results', function(data) {
+            console.log('Top 5 results received:', data);
+            displayTop5Results(data);
+        });
+
+        // Listen for This or That results
+        socket.on('sorting_game_results', function(data) {
+            console.log('This or That results received:', data);
+            displaySortingGameResults(data);
+        });
+
+        // Listen for Top 5 question selection to show hints
+        socket.on('question_selected', function(data) {
+            // Check if this is a Top 5 question
+            if (data.questionData && data.questionData.question_type === 'ac') {
+                console.log('Top 5 question selected, showing hints');
+                showTop5Hints(data.questionData);
+            } else {
+                // Not a Top 5 question, hide hints if they're showing
+                hideTop5Hints();
+            }
+        });
+
+        // Display input question results
+        function displayInputResults(results) {
+            const resultsContainer = document.getElementById('input-results-container');
+            if (!resultsContainer) return;
+
+            let html = '<div style="margin-top: 1.5rem; padding: 0.75rem 1rem; background-color: rgba(40, 167, 69, 0.15); border-radius: 6px; border: 1px solid rgba(40, 167, 69, 0.4);">';
+
+            // Display correct answer header
+            if (results.input_type === 'guess') {
+                html += `<div style="color: #28a745; margin-bottom: 0.5rem; font-size: 1.3rem; font-weight: bold;">Correct Answer: ${results.correct_answer}</div>`;
+            } else if (results.input_type === 'movie') {
+                html += `<div style="color: #28a745; margin-bottom: 0.5rem; font-size: 1.3rem; font-weight: bold;">Movie: ${results.movie_title} (${results.movie_year})</div>`;
+            } else {
+                const expectedAnswers = results.expected_answers.join(', ');
+                html += `<div style="color: #28a745; margin-bottom: 0.5rem; font-size: 1.3rem; font-weight: bold;">Correct Answer: ${expectedAnswers}</div>`;
+            }
+
+            // Display user results
+            html += '<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.3rem; font-size: 1.1rem; max-height: 280px; overflow-y: auto;">';
+
+            if (results.input_type === 'guess') {
+                // Sort by distance (ascending) - closest first
+                const sortedResults = [...results.user_results].sort((a, b) => a.distance - b.distance);
+
+                sortedResults.forEach(result => {
+                    const bgColor = result.is_winner ? 'rgba(40, 167, 69, 0.4)' : 'transparent';
+                    const fontWeight = result.is_winner ? 'bold' : 'normal';
+                    html += `
+                        <div style="color: white; padding: 0.2rem 0.5rem; background-color: ${bgColor}; border-radius: 3px; font-weight: ${fontWeight};">
+                            ${result.username}: ${result.guess} (Dist: ${result.distance})
+                        </div>
+                    `;
+                });
+            } else {
+                // Normal questions - show all with correct/incorrect
+                results.user_results.forEach(result => {
+                    const bgColor = result.is_correct ? 'rgba(40, 167, 69, 0.4)' : 'rgba(192, 57, 43, 0.4)';
+                    const icon = result.is_correct ? '✓' : '✗';
+                    html += `
+                        <div style="color: white; padding: 0.2rem 0.5rem; background-color: ${bgColor}; border-radius: 3px;">
+                            ${icon} ${result.username}: ${result.answer_raw}
+                        </div>
+                    `;
+                });
+            }
+
+            html += '</div></div>';
+            resultsContainer.innerHTML = html;
+
+            // Resize images to fit with results
+            resizeImagesForResults();
+        }
+
+        // Display ordering game results
+        function displayOrderingResults(results) {
+            const resultsContainer = document.getElementById('ordering-results-container');
+            if (!resultsContainer) return;
+
+            let html = '<div style="margin-top: 1.5rem; padding: 0.5rem 0.8rem; background-color: rgba(255, 255, 255, 0.05); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.2);">';
+
+            // Display correct order header
+            html += '<div style="color: white; margin-bottom: 0.75rem; font-size: 1.4rem; font-weight: bold; text-align: center;">Correct Order:</div>';
+
+            // Display correct order items (vertical centered layout)
+            html += '<div style="display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem; max-width: 50%; margin-left: auto; margin-right: auto;">';
+            results.correct_items.forEach((item, index) => {
+                html += `
+                    <div style="color: white; padding: 0.4rem 0.8rem; background-color: rgba(255, 255, 255, 0.1); border-radius: 4px; display: flex; align-items: center; gap: 0.5rem; font-size: 1.15rem;">
+                        <span style="font-weight: bold; min-width: 35px;">${item.position}.</span>
+                        <span style="flex-grow: 1;">${item.item_name}</span>
+                        <span style="color: rgba(255,255,255,0.6); font-size: 1rem;">(${item.item_value})</span>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            // Display player results
+            html += '<div style="color: white; margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1.2rem; font-weight: bold;">Player Rankings:</div>';
+            html += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.3rem; font-size: 1.05rem;">';
+
+            results.results.forEach((result, index) => {
+                const scorePercent = (result.score * 100).toFixed(0);
+                const bgColor = result.is_winner ? 'rgba(255, 193, 7, 0.5)' : 'rgba(255, 255, 255, 0.1)';
+                const fontWeight = result.is_winner ? 'bold' : 'normal';
+
+                html += `
+                    <div style="color: white; padding: 0.3rem 0.6rem; background-color: ${bgColor}; border-radius: 3px; font-weight: ${fontWeight};">
+                        ${result.username}: ${scorePercent}%
+                    </div>
+                `;
+            });
+
+            html += '</div></div>';
+            resultsContainer.innerHTML = html;
+
+            // Resize images to fit with results
+            resizeImagesForResults();
+        }
+
+        // Display This or That results
+        function displaySortingGameResults(data) {
+            const resultsContainer = document.getElementById('sorting-results-container');
+            if (!resultsContainer) {
+                console.log('This or That results container not found');
+                return;
+            }
+
+            let html = '<div style="margin-top: 1.5rem; padding: 1rem; background-color: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2);">';
+
+            html += '<div style="color: white; margin-bottom: 1.5rem; font-size: 1.8rem; font-weight: bold; text-align: center;">Game Results</div>';
+
+            // Display ranked players
+            html += '<div style="display: flex; flex-direction: column; gap: 0.75rem; max-width: 500px; margin: 0 auto;">';
+
+            data.results.forEach((player, index) => {
+                const isFirst = index === 0;
+                const bgColor = isFirst ? 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)' : 'rgba(255, 255, 255, 0.1)';
+                const fontSize = isFirst ? '1.5rem' : '1.2rem';
+                const padding = isFirst ? '1.2rem' : '0.8rem';
+                const medal = isFirst ? '🏆 ' : '';
+
+                html += `
+                    <div style="
+                        background: ${bgColor};
+                        color: white;
+                        padding: ${padding};
+                        border-radius: 6px;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        font-size: ${fontSize};
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">
+                        <span style="font-weight: bold;">${medal}${index + 1}. ${player.username}</span>
+                        <span style="font-weight: bold;">${player.score} pts</span>
+                    </div>
+                `;
+            });
+
+            html += '</div></div>';
+
+            // Set results in container
+            resultsContainer.innerHTML = html;
+        }
+
+        // Show Top 5 hints before reveal
+        function showTop5Hints(questionData) {
+            const resultsContainer = document.getElementById('input-results-container');
+            if (!resultsContainer) return;
+
+            // Hide any previous hints or results
+            hideTop5Hints();
+
+            // Generate hints from expected answers
+            const expectedAnswers = questionData.expected_answers || [];
+            if (expectedAnswers.length === 0) return;
+
+            let html = '<div id="top5-hints-display" style="margin-top: 1.5rem;">';
+
+            // Sort by rank and display hints
+            const sortedAnswers = [...expectedAnswers].sort((a, b) => a.rank - b.rank);
+            html += '<div style="display: flex; flex-direction: column; gap: 0.6rem; max-width: 60%; margin-left: auto; margin-right: auto;">';
+
+            sortedAnswers.forEach(answer => {
+                // Generate hint: replace all non-space characters with underscores
+                const hint = answer.answer_raw.replace(/[^\s]/g, '_');
+
+                html += `
+                    <div style="color: white; padding: 0.7rem 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 5px; display: flex; align-items: center; gap: 0.8rem; font-size: 1.5rem; font-family: 'Courier New', monospace; letter-spacing: 0.2rem;">
+                        <span style="font-weight: bold; min-width: 30px; background-color: rgba(255,255,255,0.3); padding: 0.2rem 0.5rem; border-radius: 50%;">${answer.rank}</span>
+                        <span style="flex-grow: 1;">${hint}</span>
+                    </div>
+                `;
+            });
+
+            html += '</div></div>';
+            resultsContainer.innerHTML = html;
+        }
+
+        // Hide Top 5 hints
+        function hideTop5Hints() {
+            const hintsDisplay = document.getElementById('top5-hints-display');
+            if (hintsDisplay) {
+                hintsDisplay.remove();
+            }
+        }
+
+        // Display Top 5 auto-complete results
+        function displayTop5Results(data) {
+            const resultsContainer = document.getElementById('input-results-container');
+            if (!resultsContainer) return;
+
+            // Hide hints first
+            hideTop5Hints();
+
+            // 2-column layout: answers on left, player results on right
+            let html = '<div style="margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; align-items: start;">';
+
+            // LEFT COLUMN: Correct answers with gradient style (matching hints)
+            html += '<div>';
+            html += '<div style="display: flex; flex-direction: column; gap: 0.5rem;">';
+
+            const sortedAnswers = [...data.expected_answers].sort((a, b) => a.rank - b.rank);
+            sortedAnswers.forEach(answer => {
+                html += `
+                    <div style="color: white; padding: 0.6rem 0.9rem; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 5px; display: flex; align-items: center; gap: 0.8rem; font-size: 1.2rem; box-shadow: 0 3px 8px rgba(0,0,0,0.2);">
+                        <span style="font-weight: bold; min-width: 28px; background-color: rgba(255,255,255,0.3); padding: 0.2rem 0.5rem; border-radius: 50%; text-align: center;">${answer.rank}</span>
+                        <span style="flex-grow: 1; font-weight: bold;">${answer.answer_raw}</span>
+                    </div>
+                `;
+            });
+            html += '</div></div>';
+
+            // RIGHT COLUMN: Player results
+            html += '<div>';
+
+            if (data.player_results && data.player_results.length > 0) {
+                html += '<div style="color: white; margin-bottom: 0.8rem; font-size: 1.3rem; font-weight: bold; text-align: center;">Antworten</div>';
+                html += '<div style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 70vh; overflow-y: auto;">';
+
+                data.player_results.forEach(player => {
+                    const correctCount = player.guesses.filter(g => g.is_correct).length;
+                    const pointsEarned = player.points_earned || 0;
+
+                    html += `
+                        <div style="background-color: rgba(255, 255, 255, 0.05); padding: 0.4rem 0.6rem; border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                            <div style="color: white; font-size: 0.95rem; font-weight: bold; margin-bottom: 0.3rem; display: flex; justify-content: space-between; align-items: center;">
+                                <span>${player.username}</span>
+                                <span style="font-size: 0.85rem; opacity: 0.8; font-weight: normal;">${correctCount}/5 (+${pointsEarned} pts)</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.25rem;">
+                    `;
+
+                    // Show all 5 guesses (or empty slots)
+                    for (let i = 0; i < 5; i++) {
+                        const guess = player.guesses[i];
+
+                        if (guess) {
+                            const bgColor = guess.is_correct ? 'rgba(40, 167, 69, 0.7)' : 'rgba(192, 57, 43, 0.5)';
+                            const icon = guess.is_correct ? '✓ ' : '';
+                            html += `
+                                <div style="color: white; padding: 0.25rem 0.3rem; background-color: ${bgColor}; border-radius: 3px; font-size: 0.75rem; text-align: center; min-height: 28px; display: flex; align-items: center; justify-content: center; word-break: break-word; overflow: hidden; text-overflow: ellipsis;">
+                                    ${icon}${guess.answer_raw}
+                                </div>
+                            `;
+                        } else {
+                            // Empty slot
+                            html += `
+                                <div style="color: rgba(255, 255, 255, 0.3); padding: 0.25rem 0.3rem; background-color: rgba(255, 255, 255, 0.03); border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 3px; font-size: 0.75rem; text-align: center; min-height: 28px; display: flex; align-items: center; justify-content: center;">
+                                    -
+                                </div>
+                            `;
+                        }
+                    }
+
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+            } else {
+                html += '<div style="color: white; text-align: center; font-style: italic; opacity: 0.7; padding: 2rem;">No player submissions</div>';
+            }
+
+            html += '</div>';
+            html += '</div>'; // End 2-column grid
+
+            resultsContainer.innerHTML = html;
+
+            // Resize images to fit with results
+            resizeImagesForResults();
+        }
+
+        // Show buzzer alert animation
+        function showBuzzerAlert() {
+            // Create buzzer alert element
+            const buzzerAlert = document.createElement('div');
+            buzzerAlert.className = 'buzzer-alert';
+            document.body.appendChild(buzzerAlert);
+
+            // Remove the element after animation completes (1s)
+            setTimeout(() => {
+                if (buzzerAlert.parentNode) {
+                    buzzerAlert.parentNode.removeChild(buzzerAlert);
+                }
+            }, 1000);
+        }
+
+        // Show buzzed player display
+        function showBuzzedPlayer(playerName) {
+            const buzzedDisplay = document.getElementById('buzzed-player-display');
+            const playerNameElement = document.getElementById('buzzed-player-name');
+            
+            playerNameElement.textContent = playerName;
+            buzzedDisplay.style.display = 'block';
+        }
+
+        // Hide buzzed player display
+        function hideBuzzedPlayer() {
+            const buzzedDisplay = document.getElementById('buzzed-player-display');
+            buzzedDisplay.style.display = 'none';
+        }
+
+        // Hide question content
+        function hideQuestionContent() {
+            questionContent.classList.remove('active');
+            currentQuestionIsMovie = false;
+            // Reset silhouette state when closing question
+            resetSilhouetteState();
+        }
+
+        // Get category name from ID
+        function getCategoryName(categoryId) {
+            return boardState.categories[categoryId] || 'Unknown Category';
+        }
+
+        // Simple fullscreen video functionality using browser API only
+        function enterVideoFullscreen(videoElement) {
+            console.log('=== FULLSCREEN DEBUG ===');
+            console.log('Video element:', videoElement);
+            console.log('Video readyState:', videoElement.readyState);
+            console.log('Video paused:', videoElement.paused);
+            console.log('Video currentTime:', videoElement.currentTime);
+            console.log('Current fullscreen element:', document.fullscreenElement);
+            console.log('Document has focus:', document.hasFocus());
+            console.log('=========================');
+            
+            // Make sure we're not already in fullscreen
+            if (document.fullscreenElement) {
+                console.log('Already in fullscreen, just playing video');
+                videoElement.play().catch(e => console.log('Video play failed:', e));
+                return;
+            }
+            
+            // Use browser's native fullscreen API
+            if (videoElement.requestFullscreen) {
+                console.log('Requesting fullscreen...');
+                videoElement.requestFullscreen().then(() => {
+                    console.log('Native fullscreen activated successfully');
+                    // Play the video after entering fullscreen
+                    videoElement.play().catch(e => console.log('Video play failed:', e));
+                }).catch(e => {
+                    console.error('Native fullscreen failed:', e.name, e.message, e);
+                    console.log('Fallback: playing video normally');
+                    // Just play the video normally if fullscreen fails
+                    videoElement.play().catch(err => console.log('Video play failed:', err));
+                });
+            } else {
+                // Browser doesn't support fullscreen, just play normally
+                console.log('Fullscreen not supported, playing normally');
+                videoElement.play().catch(e => console.log('Video play failed:', e));
+            }
+        }
+
+        function exitVideoFullscreen(videoElement) {
+            console.log('Exiting video fullscreen mode');
+            
+            // Exit native fullscreen if active
+            if (document.fullscreenElement) {
+                document.exitFullscreen().then(() => {
+                    console.log('Native fullscreen exited');
+                }).catch(e => console.log('Exit fullscreen failed:', e));
+            }
+        }
+
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', function () {
+            // Board will be loaded when socket connects
+        });
+
+        // Handle fullscreen change events (for native fullscreen)
+        document.addEventListener('fullscreenchange', function() {
+            if (!document.fullscreenElement) {
+                // Native fullscreen was exited, pause the video
+                const videoElement = document.getElementById('question-video');
+                if (videoElement && !videoElement.paused) {
+                    videoElement.pause();
+                    console.log('Video paused due to fullscreen exit');
+                }
+            }
+        });
+
+        // ===== SILHOUETTE GAME FUNCTIONALITY =====
+        let silhouetteState = {
+            phase: 'idle', // 'idle', 'growing', 'paused_growth', 'waiting_transition', 'revealing_color', 'paused_color', 'complete'
+            startTime: null,
+            pauseTime: null,
+            elapsedTime: 0,
+            transitionTimeout: null
+        };
+
+        // Silhouette game socket listeners
+        socket.on('silhouette_start_growth', function() {
+            console.log('Silhouette: Start growth');
+            startGrowthAnimation();
+        });
+
+        socket.on('silhouette_pause_growth', function() {
+            console.log('Silhouette: Pause');
+            pauseAnimation();
+        });
+
+        socket.on('silhouette_resume_growth', function() {
+            console.log('Silhouette: Resume');
+            resumeAnimation();
+        });
+
+        socket.on('silhouette_reveal', function(data) {
+            console.log('Silhouette: Reveal answer', data);
+            revealAnswer(data.answer);
+        });
+
+        function resetSilhouetteState() {
+            const silhouetteImage = document.getElementById('silhouette-image');
+            const answerDiv = document.getElementById('silhouette-answer');
+
+            if (silhouetteImage) {
+                // Clear all animation classes
+                silhouetteImage.classList.remove('growing', 'paused', 'revealing-color');
+                silhouetteImage.style.animation = 'none';
+
+                // Reset to initial state - invisible circle, black filter
+                silhouetteImage.style.clipPath = 'circle(0% at 50% 50%)';
+                silhouetteImage.style.filter = 'brightness(0)';
+            }
+
+            if (answerDiv) {
+                // Hide answer
+                answerDiv.classList.add('d-none');
+                answerDiv.textContent = '';
+            }
+
+            // Reset state
+            silhouetteState = {
+                phase: 'idle',
+                startTime: null,
+                pauseTime: null,
+                elapsedTime: 0,
+                transitionTimeout: null
+            };
+
+            // Clear any pending transitions
+            if (silhouetteState.transitionTimeout) {
+                clearTimeout(silhouetteState.transitionTimeout);
+            }
+        }
+
+        function startGrowthAnimation() {
+            const silhouetteImage = document.getElementById('silhouette-image');
+
+            // Clear previous animations
+            silhouetteImage.classList.remove('paused', 'revealing-color');
+
+            // Start growth animation
+            silhouetteImage.classList.add('growing');
+            silhouetteState.phase = 'growing';
+            silhouetteState.startTime = Date.now();
+            silhouetteState.elapsedTime = 0;
+
+            console.log('Growth animation started');
+
+            // Set timeout for when growth completes (20 seconds)
+            setTimeout(function() {
+                if (silhouetteState.phase === 'growing') {
+                    onGrowthComplete();
+                }
+            }, 20000);
+        }
+
+        function pauseAnimation() {
+            const silhouetteImage = document.getElementById('silhouette-image');
+
+            if (silhouetteState.phase === 'growing') {
+                silhouetteImage.classList.add('paused');
+                silhouetteState.phase = 'paused_growth';
+                silhouetteState.pauseTime = Date.now();
+                silhouetteState.elapsedTime += (silhouetteState.pauseTime - silhouetteState.startTime);
+
+                console.log('Growth animation paused at:', silhouetteState.elapsedTime, 'ms');
+            } else if (silhouetteState.phase === 'revealing_color') {
+                silhouetteImage.classList.add('paused');
+                silhouetteState.phase = 'paused_color';
+                silhouetteState.pauseTime = Date.now();
+                silhouetteState.elapsedTime += (silhouetteState.pauseTime - silhouetteState.startTime);
+
+                console.log('Color reveal paused at:', silhouetteState.elapsedTime, 'ms');
+            }
+        }
+
+        function resumeAnimation() {
+            const silhouetteImage = document.getElementById('silhouette-image');
+
+            if (silhouetteState.phase === 'paused_growth') {
+                silhouetteImage.classList.remove('paused');
+                silhouetteState.phase = 'growing';
+                silhouetteState.startTime = Date.now();
+
+                console.log('Growth animation resumed');
+
+                // Calculate remaining time
+                const remainingTime = 20000 - silhouetteState.elapsedTime;
+                setTimeout(function() {
+                    if (silhouetteState.phase === 'growing') {
+                        onGrowthComplete();
+                    }
+                }, remainingTime);
+
+            } else if (silhouetteState.phase === 'paused_color') {
+                silhouetteImage.classList.remove('paused');
+                silhouetteState.phase = 'revealing_color';
+                silhouetteState.startTime = Date.now();
+
+                console.log('Color reveal resumed');
+
+                // Calculate remaining time
+                const remainingTime = 12500 - silhouetteState.elapsedTime;
+                setTimeout(function() {
+                    if (silhouetteState.phase === 'revealing_color') {
+                        console.log('Color reveal complete');
+                        silhouetteState.phase = 'complete';
+                    }
+                }, remainingTime);
+            }
+        }
+
+        function onGrowthComplete() {
+            console.log('Growth animation complete, waiting 1 second before color reveal');
+
+            silhouetteState.phase = 'waiting_transition';
+
+            // Wait 1 second, then start color reveal
+            silhouetteState.transitionTimeout = setTimeout(function() {
+                startColorReveal();
+            }, 1000);
+        }
+
+        function startColorReveal() {
+            const silhouetteImage = document.getElementById('silhouette-image');
+
+            console.log('Starting color reveal animation');
+
+            // Remove growth class, add color reveal class
+            silhouetteImage.classList.remove('growing', 'paused');
+
+            // Ensure circle is fully grown before color reveal
+            silhouetteImage.style.clipPath = 'circle(75% at 50% 50%)';
+
+            // Start color reveal animation
+            silhouetteImage.classList.add('revealing-color');
+
+            silhouetteState.phase = 'revealing_color';
+            silhouetteState.startTime = Date.now();
+            silhouetteState.elapsedTime = 0;
+
+            // Notify server that color reveal phase has started (for scoring)
+            socket.emit('silhouette_color_reveal_started');
+
+            // Set timeout for when color reveal completes (12.5 seconds)
+            setTimeout(function() {
+                if (silhouetteState.phase === 'revealing_color') {
+                    console.log('Color reveal complete');
+                    silhouetteState.phase = 'complete';
+                }
+            }, 12500);
+        }
+
+        function revealAnswer(answer) {
+            const answerDiv = document.getElementById('silhouette-answer');
+
+            answerDiv.textContent = answer || 'Answer';
+            answerDiv.classList.remove('d-none');
+
+            console.log('Answer revealed:', answer);
+        }
+        // ===== END SILHOUETTE GAME FUNCTIONALITY =====
+    </script>
+</body>
+
+</html>

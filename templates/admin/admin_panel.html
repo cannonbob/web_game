@@ -1,0 +1,1529 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - Game Platform{% endblock %}
+
+{% block container_class %}wide-container{% endblock %}
+
+{% block content %}
+<div class="alert alert-info mb-4" id="game-status">
+    {% if game_state.is_active %}
+    Game in progress: {{ game_state.active_game }}
+    {% else %}
+    No game currently active.
+    {% endif %}
+</div>
+
+<!-- Current Question Information -->
+<div class="card shadow mb-4" id="current-question-info" style="display: none;">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <h6 class="text-muted mb-1">Question</h6>
+                <p class="mb-0" id="current-question-text">-</p>
+            </div>
+            <div class="col-md-3">
+                <h6 class="text-muted mb-1">Answer</h6>
+                <p class="mb-0" id="current-question-answer">-</p>
+            </div>
+            <div class="col-md-2">
+                <h6 class="text-muted mb-1">Question Type</h6>
+                <p class="mb-0">
+                    <span class="badge bg-secondary" id="current-question-type">-</span>
+                </p>
+            </div>
+            <div class="col-md-3">
+                <h6 class="text-muted mb-1">Action</h6>
+                <button class="btn btn-primary w-100" id="show-question-btn">
+                    <i class="fas fa-eye me-1"></i>Show Question
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Column: Media Controls & Game Controls -->
+    <div class="col-md-4">
+        <div id="media-player-section" class="card shadow border-warning mb-4 d-none">
+            <div class="card-header">
+                <h3 class="h5 mb-0">Media Controls</h3>
+                <button id="back-to-board" class="btn btn-outline-dark btn-sm float-end">Back to Game Board</button>
+            </div>
+            <div class="card-body">
+                <div id="media-info" class="mb-3">
+                    <h6>Current Question:</h6>
+                    <p id="media-question-title" class="small">No question selected</p>
+                    <small class="text-muted">Media is displayed on the main screen. Use controls below to manage playback.</small>
+                </div>
+                <div id="spotify-auth-section" class="mb-3 d-none">
+                    <div class="alert alert-warning" id="spotify-status">Spotify authentication required</div>
+                    <button id="spotify-auth-btn" class="btn btn-success btn-sm w-100">
+                        <i class="fab fa-spotify me-2"></i>Get Authorization Code
+                    </button>
+                    <div id="code-input-section" class="mt-2 d-none">
+                        <small class="text-muted">Copy the authorization code from the URL and paste it below:</small>
+                        <div class="input-group mt-1">
+                            <input type="text" id="auth-code-input" class="form-control" placeholder="Paste authorization code here...">
+                            <button id="submit-code-btn" class="btn btn-primary btn-sm">Submit</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="media-controls" class="d-grid gap-2">
+                    <button id="play-btn" class="btn btn-success">
+                        <i class="fas fa-play me-2"></i>Play
+                    </button>
+                    <button id="pause-btn" class="btn btn-warning">
+                        <i class="fas fa-pause me-2"></i>Pause
+                    </button>
+                    <button id="stop-btn" class="btn btn-danger">
+                        <i class="fas fa-stop me-2"></i>Stop
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Placeholder when media controls are hidden -->
+        <div id="media-placeholder" class="card shadow border-secondary mb-4">
+            <div class="card-header">
+                <h3 class="h5 mb-0">Media Controls</h3>
+            </div>
+            <div class="card-body text-center text-muted">
+                <i class="fas fa-music fa-3x mb-3 opacity-25"></i>
+                <p>Media controls will appear here when a question with media content is selected.</p>
+            </div>
+        </div>
+
+        <!-- Game Controls Section -->
+        <div id="game-controls" class="d-none">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h3 class="h5 mb-0">Game Controls</h3>
+                </div>
+                <div class="card-body">
+                    <!-- Match Me Controls -->
+                    <div id="match-me-controls" class="game-specific-controls d-none">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success start-actual-game" data-game="match_me">Start Game</button>
+                            <button class="btn btn-danger end-game">End Game</button>
+                        </div>
+                    </div>
+
+                    <!-- GeoGuessr Controls -->
+                    <div id="geo-guessr-controls" class="game-specific-controls d-none">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary start-round">Start Round</button>
+                            <button class="btn btn-warning end-round">Show Results</button>
+                            <button class="btn btn-danger end-game">End Game</button>
+                        </div>
+                    </div>
+
+                    <!-- Flappy Birds Controls -->
+                    <div id="flappy-birds-controls" class="game-specific-controls d-none">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success start-actual-game" data-game="flappy_birds">Start Game</button>
+                            <button class="btn btn-danger end-game">End Game</button>
+                        </div>
+                    </div>
+
+                    <!-- Price Guesser Controls -->
+                    <div id="price-guesser-controls" class="game-specific-controls d-none">
+                        <div class="alert alert-info mb-3">
+                            <strong>Current Product:</strong><br>
+                            <small id="current-product-name">Loading...</small>
+                        </div>
+
+                        <div class="alert alert-secondary mb-3">
+                            <strong>Submissions:</strong> <span id="submission-count-admin">0</span>
+                        </div>
+
+                        <div id="price-input-section">
+                            <label for="actual-price-input" class="form-label">Actual Price (€) <small class="text-muted">(auto-filled)</small></label>
+                            <div class="input-group mb-2">
+                                <input type="number" id="actual-price-input" class="form-control" placeholder="19.99" step="0.01" min="0">
+                                <span class="input-group-text">€</span>
+                            </div>
+                            <button id="calculate-results-btn" class="btn btn-success w-100 mb-3">
+                                <i class="fas fa-calculator me-2"></i>Calculate Results
+                            </button>
+                        </div>
+
+                        <hr class="my-3">
+
+                        <div class="d-grid gap-2">
+                            <button id="next-product-btn" class="btn btn-primary">
+                                <i class="fas fa-forward me-2"></i>Next Product
+                            </button>
+                            <small class="text-muted text-center">After clicking Next Product, refresh the display browser to show the new product</small>
+                            <button class="btn btn-danger end-game">
+                                <i class="fas fa-stop me-2"></i>End Game
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Cooperative Puzzle Controls -->
+                    <div id="coop-puzzle-controls" class="game-specific-controls d-none">
+                        <div class="d-grid gap-2">
+                            <div class="alert alert-info mb-3" id="coop-puzzle-info">Teams have been assigned. Start when ready.</div>
+                            <button class="btn btn-success start-actual-game" data-game="coop_puzzle">Start Game</button>
+                            <button class="btn btn-danger end-game">End Game</button>
+                        </div>
+                    </div>
+
+                    <!-- Buzzer Controls (context-sensitive for questions) -->
+                    <div id="buzzer-controls" class="question-buzzer-controls d-none">
+                        <div class="d-grid gap-2">
+                            <div class="alert alert-info mb-3" id="buzzer-player-info">Players are on buzzer page. Waiting for someone to buzz...</div>
+
+                            <!-- Multi-item navigation controls -->
+                            <div id="multi-item-controls" class="d-none mb-3">
+                                <div class="alert alert-secondary mb-2" id="item-counter">Item 1 of 1</div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <button class="btn btn-outline-primary w-100 previous-item">
+                                            <i class="fas fa-arrow-left me-1"></i>Previous
+                                        </button>
+                                    </div>
+                                    <div class="col-6">
+                                        <button class="btn btn-outline-primary w-100 next-item">
+                                            Next<i class="fas fa-arrow-right ms-1"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Input question controls -->
+                            <div id="input-question-controls" class="d-none mb-3">
+                                <div class="alert alert-info mb-2">
+                                    <strong>Input Question Active</strong><br>
+                                    <span id="submission-count">0 submissions received</span>
+                                </div>
+                                <button class="btn btn-danger w-100 mb-2" id="close-input-round">
+                                    <i class="fas fa-check me-1"></i>Close Round & Show Results
+                                </button>
+                            </div>
+
+                            <!-- Top 5 question controls -->
+                            <div id="top-5-controls" class="d-none mb-3">
+                                <div class="alert alert-info mb-2">
+                                    <strong>Top 5 Auto-Complete Active</strong><br>
+                                    <span id="top-5-submission-count">0 guesses submitted</span>
+                                </div>
+                                <button class="btn btn-danger w-100 mb-2" id="reveal-top-5">
+                                    <i class="fas fa-eye me-1"></i>Reveal Answers & Results
+                                </button>
+                            </div>
+
+                            <!-- Ordering game controls -->
+                            <div id="ordering-question-controls" class="d-none mb-3">
+                                <div class="alert alert-info mb-2">
+                                    <strong>Ordering Game Active</strong><br>
+                                    <span id="ordering-submission-count">0 submissions received</span>
+                                </div>
+                                <button class="btn btn-danger w-100 mb-2" id="close-ordering-round">
+                                    <i class="fas fa-check me-1"></i>End Round & Show Results
+                                </button>
+                            </div>
+
+                            <!-- This or That game controls -->
+                            <div id="sorting-game-controls" class="d-none mb-3">
+                                <div class="alert alert-info mb-2">
+                                    <strong>This or That Ready</strong><br>
+                                    <span>Players are waiting</span>
+                                </div>
+                                <button class="btn btn-success w-100 mb-2" id="start-sorting-game">
+                                    <i class="fas fa-play me-1"></i>Start Game
+                                </button>
+                            </div>
+
+                            <!-- Silhouette game controls -->
+                            <div id="silhouette-controls" class="d-none mb-3">
+                                <div class="alert alert-info mb-2">
+                                    <strong>Silhouette Game Active</strong><br>
+                                    <span>Players can buzz in to guess</span>
+                                </div>
+                                <button class="btn btn-success w-100 mb-2" id="start-silhouette-growth">
+                                    <i class="fas fa-play me-1"></i>Start Growth
+                                </button>
+                                <button class="btn btn-warning w-100 mb-2" id="pause-silhouette-growth">
+                                    <i class="fas fa-pause me-1"></i>Pause
+                                </button>
+                                <button class="btn btn-info w-100 mb-2" id="resume-silhouette-growth">
+                                    <i class="fas fa-play me-1"></i>Resume
+                                </button>
+                                <button class="btn btn-danger w-100 mb-2" id="reveal-silhouette">
+                                    <i class="fas fa-eye me-1"></i>Reveal Answer
+                                </button>
+                            </div>
+
+                            <button class="btn btn-primary reset-buzzer">Reset Buzzer</button>
+                            <button class="btn btn-success correct-answer">Correct Answer</button>
+                            <button class="btn btn-warning wrong-answer">Wrong Answer</button>
+                            <button class="btn btn-secondary back-to-board">Send Players Back</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Center Column: Game Platform Controls & Game Selection -->
+    <div class="col-md-5">
+        <!-- Game Platform Controls -->
+        <div class="card shadow mb-4">
+            <div class="card-header">
+                <h3 class="h5 mb-0">Game Platform Control</h3>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">Control the overall game platform state. When started, the game board will be shown on the display.</p>
+                <div class="d-grid gap-2">
+                    <!-- Platform Control Row -->
+                    <div class="row">
+                        <div class="col-6">
+                            <button id="start-platform" class="btn btn-success w-100" style="height: 38px;">
+                                <i class="fas fa-play me-2"></i>Start Platform
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button id="stop-platform" class="btn btn-danger w-100" style="height: 38px;">
+                                <i class="fas fa-stop me-2"></i>Stop Platform
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Navigation Row -->
+                    <div class="row">
+                        <div class="col-6">
+                            <button id="goto-game-board" class="btn btn-primary w-100" style="height: 38px;">
+                                <i class="fas fa-gamepad me-2"></i>Game Board
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button id="goto-waiting-room" class="btn btn-warning w-100" style="height: 38px;">
+                                <i class="fas fa-users me-2"></i>Waiting Room
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Utility Row -->
+                    <div class="row">
+                        <div class="col-6">
+                            <button id="check-state" class="btn btn-info w-100" style="height: 38px;">
+                                <i class="fas fa-info-circle me-1"></i>Check State
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button id="test-socket" class="btn btn-secondary w-100" style="height: 38px;">
+                                Test Socket.IO
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Selection -->
+        <div class="card shadow mb-4">
+            <div class="card-header">
+                <h3 class="h5 mb-0">Select a Game</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for game in games %}
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ game|title }}</h5>
+                                <p class="card-text small">
+                                    {% if game == 'match_me' %}
+                                    Players match titles with artists.
+                                    {% elif game == 'geo_guessr' %}
+                                    Players guess locations on a map.
+                                    {% elif game == 'flappy_birds' %}
+                                    Classic Flappy Birds game.
+                                    {% elif game == 'buzzer' %}
+                                    Buzzer for quick response.
+                                    {% endif %}
+                                </p>
+                                <button class="btn btn-primary select-game w-100" data-game="{{ game }}">Select Game</button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Player List -->
+    <div class="col-md-3">
+        <div class="card shadow">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="h4 mb-0">Player Scores</h2>
+                <button id="refresh-scores" class="btn btn-light btn-sm">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="list-group" id="player-scores">
+                    {% for user in users %}
+                    {% if user.username != 'admin' %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>{{ user.username }}</span>
+                        <span class="badge bg-primary rounded-pill">{{ user.overall_score }}</span>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Load Socket utility before using it -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+<!-- Load Socket utility after Socket.IO is loaded -->
+<script src="{{ url_for('static', filename='js/socket-utility.js') }}"></script>
+<script>
+    // Initialize socket and status indicator
+    const socket = SocketManager.init();
+    SocketManager.createStatusIndicator();
+
+    let currentGame = null;
+    let currentQuestionData = null;
+
+    // Test Socket.IO connection
+    document.getElementById('test-socket').addEventListener('click', function () {
+        console.log('Testing Socket.IO connection...');
+
+        // First check if socket is connected
+        if (!socket.connected) {
+            console.error('Socket is not connected!');
+            showNotification('Socket.IO is not connected!', 'danger');
+            return;
+        }
+
+        // Emit test event
+        socket.emit('test_socket', { test: 'data' });
+        console.log('test_socket event emitted');
+
+        // Listen for response (one-time listener)
+        socket.once('test_response', function (data) {
+            console.log('Received test response:', data);
+            showNotification('Socket.IO is working! ' + data.message, 'success');
+        });
+
+        // Set timeout in case we don't get a response
+        setTimeout(function () {
+            if (socket.hasListeners && !socket.hasListeners('test_response')) {
+                console.error('No response received from server');
+                showNotification('No response from Socket.IO server', 'danger');
+            }
+        }, 3000);
+    });
+
+    // Game platform control handlers
+    document.getElementById('start-platform').addEventListener('click', function () {
+        console.log('Start platform button clicked');
+
+        // Use the direct database API endpoint
+        fetch('/api/start_platform', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Platform started successfully using direct API');
+                    showNotification('Game platform started!', 'success');
+
+                    // Reset input question state
+                    window.currentInputQuestionId = null;
+                    window.currentOrderingQuestionId = null;
+                    const closeButton = document.getElementById('close-input-round');
+                    if (closeButton) {
+                        closeButton.disabled = false;
+                        closeButton.innerHTML = '<i class="fas fa-check me-1"></i>Close Round & Show Results';
+                    }
+
+                    // Force refresh of the game display by sending a custom event
+                    socket.emit('admin_refresh_display', {});
+
+                    // Update local game status display
+                    updateGameStatus();
+                } else {
+                    console.error('Failed to start platform:', data.error);
+                    showNotification('Failed to start platform: ' + data.error, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error starting platform:', error);
+                showNotification('Error starting platform', 'danger');
+            });
+    });
+
+    document.getElementById('stop-platform').addEventListener('click', function () {
+        console.log('Stop platform button clicked');
+
+        // Use the direct database API endpoint
+        fetch('/api/stop_platform', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Platform stopped successfully using direct API');
+                    showNotification('Game platform stopped!', 'warning');
+
+                    // Update local game status display
+                    updateGameStatus();
+                } else {
+                    console.error('Failed to stop platform:', data.error);
+                    showNotification('Failed to stop platform: ' + data.error, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error stopping platform:', error);
+                showNotification('Error stopping platform', 'danger');
+            });
+    });
+
+    document.getElementById('check-state').addEventListener('click', function () {
+        fetch('/api/platform_state')
+            .then(response => response.json())
+            .then(data => {
+                let stateInfo = `Platform Active: ${data.is_active}\nActive Game: ${data.active_game || 'None'}`;
+                alert(stateInfo);
+                console.log('Current platform state:', data);
+            })
+            .catch(error => {
+                console.error('Error checking platform state:', error);
+                alert('Error checking platform state');
+            });
+    });
+
+    // Navigation button handlers
+    document.getElementById('goto-game-board').addEventListener('click', function () {
+        console.log('Goto Game Board button clicked');
+        // Send display to game board, players to waiting room
+        socket.emit('admin_goto_game_board');
+        showNotification('Navigating to Game Board...', 'info');
+    });
+
+    document.getElementById('goto-waiting-room').addEventListener('click', function () {
+        console.log('Goto Waiting Room button clicked');
+        // Send both display and players to waiting room
+        socket.emit('admin_goto_waiting_room');
+        showNotification('Navigating to Waiting Room...', 'info');
+    });
+
+    // Select game event handlers (for player forwarding)
+    document.querySelectorAll('.select-game').forEach(button => {
+        button.addEventListener('click', function () {
+            const game = this.getAttribute('data-game');
+            console.log('Admin selecting game:', game);
+            
+            // This will initialize the game manager but not start the actual game
+            socket.emit('select_game', { game: game });
+            console.log('select_game event emitted');
+        });
+    });
+
+    // Start actual game event handlers (for game countdown/questions)
+    document.querySelectorAll('.start-actual-game').forEach(button => {
+        button.addEventListener('click', function () {
+            const game = this.getAttribute('data-game');
+            console.log('Admin starting actual game:', game);
+            
+            // This will trigger the actual game start (countdown, questions)
+            socket.emit('start_actual_game', { game: game });
+            console.log('start_actual_game event emitted');
+        });
+    });
+
+    // End game event handler - use generic event that goes through game manager
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('end-game')) {
+            console.log('End Game button clicked for game:', currentGame);
+            socket.emit('end_game');
+            console.log('end_game event emitted (will be handled by game manager)');
+        }
+    });
+
+    // GeoGuessr admin button event handlers
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('start-round')) {
+            console.log('Start Round button clicked');
+            socket.emit('geo_guessr_start_round', {});
+        }
+        if (e.target.classList.contains('end-round')) {
+            console.log('Show Results button clicked');
+            socket.emit('geo_guessr_end_round', {});
+        }
+    });
+
+    // Media control event handlers
+    document.getElementById('play-btn').addEventListener('click', function() {
+        if (currentQuestionData) {
+            const controlData = {
+                action: 'play',
+                mediaType: getMediaType()
+            };
+            
+            // Add track ID for Spotify tracks
+            if (currentQuestionData.spotify_track_id) {
+                controlData.trackId = currentQuestionData.spotify_track_id;
+            }
+
+            socket.emit('admin_media_control', controlData);
+        }
+    });
+
+    document.getElementById('pause-btn').addEventListener('click', function() {
+        if (currentQuestionData) {
+            const controlData = {
+                action: 'pause',
+                mediaType: getMediaType()
+            };
+
+            // Add track ID for Spotify tracks
+            if (currentQuestionData.spotify_track_id) {
+                controlData.trackId = currentQuestionData.spotify_track_id;
+            }
+
+            socket.emit('admin_media_control', controlData);
+        }
+    });
+
+    document.getElementById('stop-btn').addEventListener('click', function() {
+        if (currentQuestionData) {
+            const controlData = {
+                action: 'stop',
+                mediaType: getMediaType()
+            };
+
+            // Add track ID for Spotify tracks
+            if (currentQuestionData.spotify_track_id) {
+                controlData.trackId = currentQuestionData.spotify_track_id;
+            }
+
+            socket.emit('admin_media_control', controlData);
+        }
+    });
+
+    document.getElementById('back-to-board').addEventListener('click', function() {
+        hideMediaPlayer();
+        hideCurrentQuestionInfo();
+        // Also send display back to game board
+        socket.emit('back_to_game_board');
+    });
+
+    // Input question controls
+    const closeInputRoundBtn = document.getElementById('close-input-round');
+    if (closeInputRoundBtn) {
+        closeInputRoundBtn.addEventListener('click', function() {
+            if (window.currentInputQuestionId) {
+                console.log('Closing input round for question:', window.currentInputQuestionId);
+                socket.emit('close_input_round', {
+                    question_id: window.currentInputQuestionId
+                });
+                // Disable button to prevent double-clicking
+                this.disabled = true;
+                this.textContent = 'Calculating results...';
+            }
+        });
+    }
+
+    // Top 5 controls
+    const revealTop5Btn = document.getElementById('reveal-top-5');
+    if (revealTop5Btn) {
+        revealTop5Btn.addEventListener('click', function() {
+            if (window.currentTop5QuestionId) {
+                console.log('Revealing Top 5 results for question:', window.currentTop5QuestionId);
+                socket.emit('reveal_top_5', {
+                    question_id: window.currentTop5QuestionId
+                });
+                // Disable button to prevent double-clicking
+                this.disabled = true;
+                this.textContent = 'Revealing results...';
+            }
+        });
+    }
+
+    // Ordering game controls
+    const closeOrderingRoundBtn = document.getElementById('close-ordering-round');
+    if (closeOrderingRoundBtn) {
+        closeOrderingRoundBtn.addEventListener('click', function() {
+            if (window.currentOrderingQuestionId) {
+                console.log('Ending ordering round for question:', window.currentOrderingQuestionId);
+                socket.emit('end_ordering_round', {
+                    question_id: window.currentOrderingQuestionId
+                });
+                // Disable button to prevent double-clicking
+                this.disabled = true;
+                this.textContent = 'Calculating results...';
+            }
+        });
+    }
+
+    // Socket event listeners
+    socket.on('game_started', function (data) {
+        currentGame = data.game;
+        updateGameStatus();
+        showGameControls(data.game);
+    });
+
+    socket.on('game_ended', function () {
+        currentGame = null;
+        updateGameStatus();
+        hideAllGameControls();
+    });
+
+    socket.on('user_joined', function () {
+        updatePlayerList();
+    });
+
+    socket.on('user_left', function () {
+        updatePlayerList();
+    });
+
+    // Buzzer specific events
+    socket.on('buzzer_player_buzzed', function (data) {
+        document.getElementById('buzzer-player-info').textContent = `${data.username} has buzzed! Judge their answer.`;
+        document.getElementById('buzzer-player-info').className = 'alert alert-warning mb-3';
+        
+        // Auto-pause media when someone buzzes (if media is currently playing)
+        if (currentQuestionData && (currentQuestionData.question_type === 'audio' || currentQuestionData.question_type === 'video')) {
+            console.log('Auto-pausing media due to player buzz:', data.username);
+            const controlData = {
+                action: 'pause',
+                mediaType: getMediaType()
+            };
+
+            // Add track ID for Spotify tracks
+            if (currentQuestionData.spotify_track_id) {
+                controlData.trackId = currentQuestionData.spotify_track_id;
+            }
+
+            socket.emit('admin_media_control', controlData);
+        }
+    });
+
+    // Buzzer control event handlers
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('reset-buzzer')) {
+            console.log('Reset Buzzer button clicked');
+            socket.emit('buzzer_reset');
+            document.getElementById('buzzer-player-info').textContent = 'Players are on buzzer page. Waiting for someone to buzz...';
+            document.getElementById('buzzer-player-info').className = 'alert alert-info mb-3';
+        }
+        if (e.target.classList.contains('correct-answer')) {
+            console.log('Correct Answer button clicked');
+            socket.emit('buzzer_correct');
+        }
+        if (e.target.classList.contains('wrong-answer')) {
+            console.log('Wrong Answer button clicked');
+            socket.emit('buzzer_wrong');
+        }
+        if (e.target.classList.contains('back-to-board')) {
+            console.log('Send Players Back button clicked');
+            socket.emit('back_to_game_board');
+            hideMediaPlayer(); // Also hide media controls when going back
+            hideAllGameControls(); // Hide buzzer controls when going back
+            hideCurrentQuestionInfo(); // Hide current question info
+
+            // Reset input question state
+            window.currentInputQuestionId = null;
+            window.currentOrderingQuestionId = null;
+            const closeButton = document.getElementById('close-input-round');
+            if (closeButton) {
+                closeButton.disabled = false;
+                closeButton.innerHTML = '<i class="fas fa-check me-1"></i>Close Round & Show Results';
+            }
+        }
+        // Sorting game controls
+        if (e.target.id === 'start-sorting-game') {
+            console.log('Start This or That button clicked');
+            const questionId = window.currentSortingQuestionId;
+            if (questionId) {
+                socket.emit('sorting_game_start', { question_id: questionId });
+                // Hide the start button after clicking
+                document.getElementById('sorting-game-controls').classList.add('d-none');
+            }
+        }
+        // Silhouette game controls
+        if (e.target.id === 'start-silhouette-growth') {
+            console.log('Start Silhouette Growth button clicked');
+            socket.emit('silhouette_start_growth');
+        }
+        if (e.target.id === 'pause-silhouette-growth') {
+            console.log('Pause Silhouette Growth button clicked');
+            socket.emit('silhouette_pause_growth');
+        }
+        if (e.target.id === 'resume-silhouette-growth') {
+            console.log('Resume Silhouette Growth button clicked');
+            socket.emit('silhouette_resume_growth');
+        }
+        if (e.target.id === 'reveal-silhouette') {
+            console.log('Reveal Silhouette button clicked');
+            socket.emit('silhouette_reveal');
+        }
+        if (e.target.classList.contains('next-item')) {
+            console.log('Next Item button clicked');
+            socket.emit('next_item');
+        }
+        if (e.target.classList.contains('previous-item')) {
+            console.log('Previous Item button clicked');
+            socket.emit('previous_item');
+        }
+    });
+
+    // Listen for game over events to hide controls and refresh scores
+    socket.on('geo_guessr_game_over', function(data) {
+        console.log('GeoGuessr game over:', data);
+        currentGame = null;
+        hideAllGameControls();
+        hideCurrentQuestionInfo();
+        updatePlayerList(); // Refresh scores
+        updateGameStatus(); // Update game status div
+        showNotification(`GeoGuessr finished! Winner: ${data.winner}`, 'success');
+    });
+
+    socket.on('match_me_game_over', function(data) {
+        console.log('Match Me game over:', data);
+
+        // Prevent duplicate notifications if event is received multiple times
+        if (currentGame !== 'match_me') return;
+
+        currentGame = null;
+        hideAllGameControls();
+        hideCurrentQuestionInfo();
+        updatePlayerList(); // Refresh scores
+        updateGameStatus(); // Update game status div
+        showNotification('Match Me finished!', 'success');
+    });
+
+    socket.on('flappy_birds_game_over', function(data) {
+        console.log('Flappy Birds game over:', data);
+        currentGame = null;
+        hideAllGameControls();
+        hideCurrentQuestionInfo();
+        updatePlayerList(); // Refresh scores
+        updateGameStatus(); // Update game status div
+        showNotification('Flappy Birds finished!', 'success');
+    });
+
+    socket.on('buzzer_game_over', function(data) {
+        console.log('Buzzer game over:', data);
+        currentGame = null;
+        hideAllGameControls();
+        hideCurrentQuestionInfo();
+        updatePlayerList(); // Refresh scores
+        updateGameStatus(); // Update game status div
+        showNotification('Buzzer finished!', 'success');
+    });
+
+    socket.on('coop_puzzle_game_over', function(data) {
+        console.log('Cooperative Puzzle game over:', data);
+        currentGame = null;
+        hideAllGameControls();
+        hideCurrentQuestionInfo();
+        updatePlayerList(); // Refresh scores
+        updateGameStatus(); // Update game status div
+        showNotification(`Cooperative Puzzle finished! ${data.winning_team.toUpperCase()} wins!`, 'success');
+    });
+
+    socket.on('sorting_game_ended', function(data) {
+        console.log('This or That ended:', data);
+        currentGame = null;
+        hideAllGameControls();
+        hideCurrentQuestionInfo();
+        updatePlayerList(); // Refresh scores
+        updateGameStatus(); // Update game status div
+        showNotification('This or That finished!', 'success');
+    });
+
+    // Listen for question selections to show media controls and buzzer controls
+    socket.on('question_selected', function(data) {
+        const { category, value, question, answer, questionData, currentItemIndex, totalItems } = data;
+
+        console.log('Admin: question_selected received:', {
+            multi_item: questionData?.multi_item,
+            question_type: questionData?.question_type,
+            currentItemIndex: currentItemIndex,
+            totalItems: totalItems,
+            items_count: questionData?.items?.length
+        });
+
+        // Update current question information display
+        updateCurrentQuestionInfo(question, answer, questionData);
+
+        // Check if this is a This or That question
+        if (questionData && questionData.question_type === 'tt') {
+            // Show buzzer controls area for This or That (reuse same controls area)
+            showGameControls('buzzer');
+
+            // Hide buzzer-specific elements
+            document.getElementById('buzzer-player-info').classList.add('d-none');
+            document.querySelector('.reset-buzzer').classList.add('d-none');
+            document.querySelector('.correct-answer').classList.add('d-none');
+            document.querySelector('.wrong-answer').classList.add('d-none');
+
+            // Hide other game controls
+            document.getElementById('ordering-question-controls').classList.add('d-none');
+            document.getElementById('input-question-controls').classList.add('d-none');
+            document.getElementById('top-5-controls').classList.add('d-none');
+
+            // Show This or That controls
+            document.getElementById('sorting-game-controls').classList.remove('d-none');
+
+            // Store current question ID
+            window.currentSortingQuestionId = questionData.id;
+
+            console.log('Admin: Sorting game ready, controls shown');
+        }
+        // Check if this is an ordering game question
+        else if (questionData && questionData.order_items && questionData.order_items.length > 0) {
+            // Show buzzer controls area for ordering questions (reuse same controls area)
+            showGameControls('buzzer');
+
+            // Hide buzzer-specific elements
+            document.getElementById('buzzer-player-info').classList.add('d-none');
+            document.querySelector('.reset-buzzer').classList.add('d-none');
+            document.querySelector('.correct-answer').classList.add('d-none');
+            document.querySelector('.wrong-answer').classList.add('d-none');
+
+            // Hide input question controls if visible
+            document.getElementById('input-question-controls').classList.add('d-none');
+            document.getElementById('sorting-game-controls').classList.add('d-none');
+
+            // Show ordering question controls
+            document.getElementById('ordering-question-controls').classList.remove('d-none');
+            document.getElementById('ordering-submission-count').textContent = '0 submissions received';
+
+            // Re-enable the close round button and reset text
+            const closeButton = document.getElementById('close-ordering-round');
+            if (closeButton) {
+                closeButton.disabled = false;
+                closeButton.innerHTML = '<i class="fas fa-check me-1"></i>End Round & Show Results';
+            }
+
+            // Store current question ID for ending round
+            window.currentOrderingQuestionId = questionData.id;
+
+            console.log('Admin: Ordering game active, controls shown');
+        }
+        // Check if this is an input question
+        else if (questionData && questionData.input_expected) {
+            // Check if it's a Top 5 auto-complete question (question_type = 'ac')
+            const isTop5 = questionData.question_type === 'ac';
+
+            // Show buzzer controls for input questions (reuse same controls area)
+            showGameControls('buzzer');
+
+            // Hide buzzer-specific elements (we're using this area for input questions)
+            document.getElementById('buzzer-player-info').classList.add('d-none');
+            document.querySelector('.reset-buzzer').classList.add('d-none');
+            document.querySelector('.correct-answer').classList.add('d-none');
+            document.querySelector('.wrong-answer').classList.add('d-none');
+
+            // Hide ordering question controls if visible
+            document.getElementById('ordering-question-controls').classList.add('d-none');
+
+            if (isTop5) {
+                // Hide regular input question controls
+                document.getElementById('input-question-controls').classList.add('d-none');
+
+                // Show Top 5 controls
+                document.getElementById('top-5-controls').classList.remove('d-none');
+                document.getElementById('top-5-submission-count').textContent = '0 guesses submitted';
+
+                // Re-enable the reveal button and reset text
+                const revealButton = document.getElementById('reveal-top-5');
+                if (revealButton) {
+                    revealButton.disabled = false;
+                    revealButton.innerHTML = '<i class="fas fa-eye me-1"></i>Reveal Answers & Results';
+                }
+
+                // Store current question ID for revealing
+                window.currentTop5QuestionId = questionData.id;
+
+                console.log('Admin: Top 5 question active, controls shown');
+            } else {
+                // Hide Top 5 controls
+                document.getElementById('top-5-controls').classList.add('d-none');
+
+                // Show input question controls
+                document.getElementById('input-question-controls').classList.remove('d-none');
+                document.getElementById('submission-count').textContent = '0 submissions received';
+
+                // Re-enable the close round button and reset text (in case it was disabled from previous round)
+                const closeButton = document.getElementById('close-input-round');
+                if (closeButton) {
+                    closeButton.disabled = false;
+                    closeButton.innerHTML = '<i class="fas fa-check me-1"></i>Close Round & Show Results';
+                }
+
+                // Store current question ID for closing round
+                window.currentInputQuestionId = questionData.id;
+
+                console.log('Admin: Input question active, controls shown');
+            }
+
+            // Handle multi-item controls for input questions (like movie screenshots)
+            console.log('Admin: Checking multi-item controls for input question - totalItems:', totalItems);
+            if (questionData && questionData.items && questionData.items.length > 0 && totalItems > 1) {
+                console.log('Admin: Showing multi-item controls for input question');
+                document.getElementById('multi-item-controls').classList.remove('d-none');
+                updateItemCounter(currentItemIndex, totalItems);
+                updateItemNavigationButtons(currentItemIndex, totalItems);
+            } else {
+                console.log('Admin: No multi-item controls needed for this input question');
+            }
+        } else {
+            // Hide input question controls, Top 5 controls, ordering question controls, and sorting game controls
+            document.getElementById('input-question-controls').classList.add('d-none');
+            document.getElementById('top-5-controls').classList.add('d-none');
+            document.getElementById('ordering-question-controls').classList.add('d-none');
+            document.getElementById('sorting-game-controls').classList.add('d-none');
+
+            // Show buzzer-specific elements for regular buzzer questions
+            document.getElementById('buzzer-player-info').classList.remove('d-none');
+            document.querySelector('.reset-buzzer').classList.remove('d-none');
+            document.querySelector('.correct-answer').classList.remove('d-none');
+            document.querySelector('.wrong-answer').classList.remove('d-none');
+
+            // Check if this question type should use buzzer
+            const buzzerQuestionTypes = ['text', 'image', 'audio', 'video', 'silhouette'];
+            const questionType = questionData ? questionData.question_type : 'text';
+
+            if (buzzerQuestionTypes.includes(questionType)) {
+                // Check if it's a silhouette question
+                if (questionType === 'silhouette') {
+                    // Show silhouette-specific controls
+                    document.getElementById('silhouette-controls').classList.remove('d-none');
+                    document.getElementById('buzzer-player-info').classList.add('d-none');
+                } else {
+                    // Show regular buzzer controls for other buzzer question types
+                    document.getElementById('silhouette-controls').classList.add('d-none');
+                }
+
+                showGameControls('buzzer');
+
+                // Handle multi-item controls
+                // Show controls when totalItems > 1, regardless of multi_item value (0=cumulative, 1=replacement)
+                console.log('Admin: Checking multi-item controls - multi_item:', questionData?.multi_item, 'totalItems:', totalItems);
+                if (questionData && questionData.items && questionData.items.length > 0 && totalItems > 1) {
+                    console.log('Admin: Showing multi-item controls');
+                    // Show multi-item controls
+                    document.getElementById('multi-item-controls').classList.remove('d-none');
+                    updateItemCounter(currentItemIndex, totalItems);
+                    updateItemNavigationButtons(currentItemIndex, totalItems);
+                } else {
+                    console.log('Admin: Hiding multi-item controls');
+                    // Hide multi-item controls
+                    document.getElementById('multi-item-controls').classList.add('d-none');
+                }
+
+                // Check if this question has media content and show media controls
+                // Exclude silhouette questions as they have their own controls
+                if (questionData && questionData.question_type && questionData.question_type !== 'text' && questionData.question_type !== 'silhouette') {
+                    currentQuestionData = questionData;
+                    showMediaPlayer(category, value, question, questionData);
+                } else {
+                    // Hide media controls for non-media questions but keep buzzer controls
+                    hideMediaPlayer();
+                }
+            } else {
+                // For non-buzzer question types, hide buzzer controls and media controls
+                hideAllGameControls();
+                console.log(`Question type "${questionType}" does not use buzzer controls`);
+            }
+        }
+    });
+
+    // Listen for item changes
+    socket.on('item_changed', function(data) {
+        const { currentItemIndex, totalItems, questionData } = data;
+        updateItemCounter(currentItemIndex, totalItems);
+        updateItemNavigationButtons(currentItemIndex, totalItems);
+    });
+
+    // Listen for new answer submissions
+    socket.on('input_answer_received', function(data) {
+        console.log('New answer received:', data);
+        // Update submission count if this is for the current question
+        if (window.currentInputQuestionId && data.question_id === window.currentInputQuestionId) {
+            const submissionCount = document.getElementById('submission-count');
+            if (submissionCount) {
+                submissionCount.textContent = `${data.total_submissions} submission${data.total_submissions !== 1 ? 's' : ''} received`;
+            }
+        }
+    });
+
+    // Listen for Top 5 answer submissions
+    socket.on('top_5_answer_received', function(data) {
+        console.log('Top 5 answer received:', data);
+        // Update submission count if this is for the current question
+        if (window.currentTop5QuestionId && data.question_id === window.currentTop5QuestionId) {
+            const submissionCount = document.getElementById('top-5-submission-count');
+            if (submissionCount) {
+                // Count total guesses across all players (we don't have total from server, so we'll just show a message)
+                submissionCount.textContent = `${data.username} submitted guess ${data.guess_number}`;
+            }
+        }
+    });
+
+    // Listen for ordering game submissions
+    socket.on('submission_update', function(data) {
+        console.log('Ordering submission update:', data);
+        // Update submission count for ordering game
+        if (window.currentOrderingQuestionId) {
+            const submissionCount = document.getElementById('ordering-submission-count');
+            if (submissionCount) {
+                submissionCount.textContent = `${data.count}/${data.total} submission${data.count !== 1 ? 's' : ''} received`;
+            }
+        }
+    });
+
+    // Functions
+    function updateGameStatus() {
+        fetch('/api/platform_state')
+            .then(response => response.json())
+            .then(state => {
+                const statusDiv = document.getElementById('game-status');
+
+                if (state.is_active) {
+                    statusDiv.textContent = `Game in progress: ${state.active_game || 'Game Board'}`;
+                    currentGame = state.active_game;
+                    showGameControls(state.active_game);
+                } else {
+                    statusDiv.textContent = 'No game currently active.';
+                    hideAllGameControls();
+                }
+            });
+    }
+
+    function updatePlayerList() {
+        fetch('/api/users')
+            .then(response => response.json())
+            .then(users => {
+                const playerList = document.getElementById('player-scores');
+                playerList.innerHTML = '';
+
+                // Sort users by score (descending) then alphabetically
+                const sortedUsers = users.filter(user => user.username !== 'admin')
+                    .sort((a, b) => {
+                        if (b.overall_score !== a.overall_score) {
+                            return b.overall_score - a.overall_score;
+                        }
+                        return a.username.localeCompare(b.username);
+                    });
+
+                sortedUsers.forEach(user => {
+                    const item = document.createElement('div');
+                    item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    item.innerHTML = `
+                        <span>${user.username}</span>
+                        <span class="badge bg-primary rounded-pill">${user.overall_score}</span>
+                    `;
+                    playerList.appendChild(item);
+                });
+            });
+    }
+
+    function showGameControls(game) {
+        // Show game container
+        document.getElementById('game-controls').classList.remove('d-none');
+
+        // For buzzer (question context), show buzzer controls specifically
+        if (game === 'buzzer') {
+            document.getElementById('buzzer-controls').classList.remove('d-none');
+            return;
+        }
+
+        // Hide all specific game controls first for other games
+        document.querySelectorAll('.game-specific-controls').forEach(control => {
+            control.classList.add('d-none');
+        });
+        document.getElementById('buzzer-controls').classList.add('d-none');
+
+        // Show specific game controls
+        if (game === 'match_me') {
+            document.getElementById('match-me-controls').classList.remove('d-none');
+        } else if (game === 'geo_guessr') {
+            document.getElementById('geo-guessr-controls').classList.remove('d-none');
+        } else if (game === 'flappy_birds') {
+            document.getElementById('flappy-birds-controls').classList.remove('d-none');
+        } else if (game === 'coop_puzzle') {
+            document.getElementById('coop-puzzle-controls').classList.remove('d-none');
+        } else if (game === 'price_guesser') {
+            document.getElementById('price-guesser-controls').classList.remove('d-none');
+        }
+    }
+
+    function hideAllGameControls() {
+        document.getElementById('game-controls').classList.add('d-none');
+        document.querySelectorAll('.game-specific-controls').forEach(control => {
+            control.classList.add('d-none');
+        });
+        // Also hide buzzer controls when hiding all controls
+        document.getElementById('buzzer-controls').classList.add('d-none');
+        // Hide input, Top 5, ordering, and silhouette question controls
+        document.getElementById('input-question-controls').classList.add('d-none');
+        document.getElementById('top-5-controls').classList.add('d-none');
+        document.getElementById('ordering-question-controls').classList.add('d-none');
+        document.getElementById('silhouette-controls').classList.add('d-none');
+    }
+
+    // Refresh scores button
+    document.getElementById('refresh-scores').addEventListener('click', function() {
+        console.log('Refreshing scores...');
+        updatePlayerList();
+        showNotification('Scores refreshed!', 'info');
+    });
+
+    // Show Question button
+    document.getElementById('show-question-btn').addEventListener('click', function() {
+        console.log('Show Question button clicked');
+        socket.emit('admin_reveal_question');
+        // Hide the button after clicking
+        this.style.display = 'none';
+    });
+
+    // Notification function
+    function showNotification(message, type = 'info') {
+        // Create a simple alert for now - you can enhance this with Bootstrap toasts
+        const alertClass = type === 'success' ? 'alert-success' : 
+                          type === 'danger' ? 'alert-danger' : 
+                          type === 'warning' ? 'alert-warning' : 'alert-info';
+        
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+        notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        notification.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Auto-remove after 3 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 3000);
+    }
+
+    // Media Player Functions
+    function showMediaPlayer(category, value, question, questionData) {
+        // Hide placeholder and show media controls
+        document.getElementById('media-placeholder').classList.add('d-none');
+        document.getElementById('media-player-section').classList.remove('d-none');
+        
+        // Set question title
+        document.getElementById('media-question-title').textContent = `Category ${category} - ${value}: ${question}`;
+        
+        // Store current question data
+        currentQuestionData = questionData;
+        
+        // Show Spotify auth section if this is a Spotify track
+        if (questionData.spotify_track_id) {
+            document.getElementById('spotify-auth-section').classList.remove('d-none');
+            checkSpotifyAuth();
+        } else {
+            document.getElementById('spotify-auth-section').classList.add('d-none');
+        }
+    }
+    
+    function hideMediaPlayer() {
+        // Hide media controls and show placeholder
+        document.getElementById('media-player-section').classList.add('d-none');
+        document.getElementById('media-placeholder').classList.remove('d-none');
+
+        // Clear current question data
+        currentQuestionData = null;
+    }
+    
+    function getMediaType() {
+        if (currentQuestionData) {
+            return currentQuestionData.question_type;
+        }
+        return null;
+    }
+
+    // Spotify authentication functions
+    function checkSpotifyAuth() {
+        fetch('/api/spotify/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.authenticated) {
+                    if (data.devices_available) {
+                        document.getElementById('spotify-status').textContent = 'Spotify ready';
+                        document.getElementById('spotify-status').className = 'alert alert-success';
+                        document.getElementById('spotify-auth-btn').style.display = 'none';
+                    } else {
+                        document.getElementById('spotify-status').textContent = 'Authenticated - Please start Spotify on a device';
+                        document.getElementById('spotify-status').className = 'alert alert-info';
+                        document.getElementById('spotify-auth-btn').style.display = 'none';
+                    }
+                } else {
+                    document.getElementById('spotify-status').textContent = 'Spotify authentication required';
+                    document.getElementById('spotify-status').className = 'alert alert-warning';
+                    document.getElementById('spotify-auth-btn').style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error checking Spotify auth:', error);
+                document.getElementById('spotify-status').textContent = 'Error checking Spotify status';
+                document.getElementById('spotify-status').className = 'alert alert-danger';
+            });
+    }
+    
+    // Spotify auth button handler
+    document.getElementById('spotify-auth-btn').addEventListener('click', function() {
+        fetch('/api/spotify/auth_url')
+            .then(response => response.json())
+            .then(data => {
+                if (data.auth_url) {
+                    // Open in new tab and show code input section
+                    window.open(data.auth_url, '_blank');
+                    document.getElementById('code-input-section').classList.remove('d-none');
+                    document.getElementById('spotify-status').innerHTML = 
+                        'Authorization opened in new tab. After granting permission, copy the code from the Google URL and paste it below.';
+                    document.getElementById('spotify-status').className = 'alert alert-info';
+                } else {
+                    alert('Error getting Spotify auth URL');
+                }
+            })
+            .catch(error => {
+                console.error('Error getting auth URL:', error);
+                alert('Error starting Spotify authentication');
+            });
+    });
+    
+    // Submit authorization code
+    document.getElementById('submit-code-btn').addEventListener('click', function() {
+        const code = document.getElementById('auth-code-input').value.trim();
+        if (!code) {
+            alert('Please paste the authorization code first.');
+            return;
+        }
+        
+        // Send code to complete authentication
+        fetch('/api/spotify/complete_auth', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ code: code })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                alert('Spotify authentication successful!');
+                document.getElementById('code-input-section').classList.add('d-none');
+                document.getElementById('auth-code-input').value = '';
+                checkSpotifyAuth();
+            } else {
+                alert('Authentication failed: ' + (result.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error completing authentication:', error);
+            alert('Error completing authentication: ' + error);
+        });
+    });
+
+    // Current question information functions
+    function updateCurrentQuestionInfo(question, answer, questionData) {
+        const infoCard = document.getElementById('current-question-info');
+        const questionText = document.getElementById('current-question-text');
+        const questionAnswer = document.getElementById('current-question-answer');
+        const questionType = document.getElementById('current-question-type');
+        const showQuestionBtn = document.getElementById('show-question-btn');
+
+        // Set question and answer
+        questionText.textContent = question || '-';
+        questionAnswer.textContent = answer || '-';
+
+        // Determine question type
+        const type = determineQuestionType(questionData);
+        questionType.textContent = type;
+
+        // Set badge color based on type
+        questionType.className = 'badge';
+        if (type === 'input') {
+            questionType.classList.add('bg-primary');
+        } else if (type === 'game') {
+            questionType.classList.add('bg-success');
+        } else if (type === 'This or That') {
+            questionType.classList.add('bg-info');
+        } else if (type === 'buzzer') {
+            questionType.classList.add('bg-danger');
+        } else {
+            questionType.classList.add('bg-secondary');
+        }
+
+        // Show the "Show Question" button
+        showQuestionBtn.style.display = 'block';
+
+        // Show the info card
+        infoCard.style.display = 'block';
+    }
+
+    function hideCurrentQuestionInfo() {
+        const infoCard = document.getElementById('current-question-info');
+        infoCard.style.display = 'none';
+    }
+
+    function determineQuestionType(questionData) {
+        if (!questionData) return 'buzzer';
+
+        // Check for This or That questions
+        if (questionData.question_type === 'tt') {
+            return 'This or That';
+        }
+
+        // Check for input questions (including ordering games)
+        if (questionData.input_expected || (questionData.order_items && questionData.order_items.length > 0)) {
+            return 'input';
+        }
+
+        // Check for game questions based on question_type
+        // mm = Match Me, gg = Geo Guessr, fb = Flappy Birds, puzzle = Cooperative Puzzle
+        const gameQuestionTypes = ['mm', 'gg', 'fb', 'puzzle'];
+        if (questionData.question_type && gameQuestionTypes.includes(questionData.question_type)) {
+            return 'game';
+        }
+
+        // Default to buzzer for all other questions (text, image, audio, video)
+        return 'buzzer';
+    }
+
+    // Multi-item helper functions
+    function updateItemCounter(currentIndex, totalItems) {
+        const counterElement = document.getElementById('item-counter');
+        if (counterElement) {
+            counterElement.textContent = `Item ${currentIndex + 1} of ${totalItems}`;
+        }
+    }
+
+    function updateItemNavigationButtons(currentIndex, totalItems) {
+        const previousBtn = document.querySelector('.previous-item');
+        const nextBtn = document.querySelector('.next-item');
+
+        if (previousBtn) {
+            if (currentIndex <= 0) {
+                previousBtn.disabled = true;
+                previousBtn.classList.add('disabled');
+            } else {
+                previousBtn.disabled = false;
+                previousBtn.classList.remove('disabled');
+            }
+        }
+
+        if (nextBtn) {
+            if (currentIndex >= totalItems - 1) {
+                nextBtn.disabled = true;
+                nextBtn.classList.add('disabled');
+            } else {
+                nextBtn.disabled = false;
+                nextBtn.classList.remove('disabled');
+            }
+        }
+    }
+
+    // Price Guesser Functions
+    let currentProductId = null;
+    let currentProductPrice = null;
+
+    // Listen for when a product is shown (from auto-selection or next product)
+    socket.on('display_open_amazon', function(data) {
+        console.log('Product shown:', data);
+        currentProductId = data.product_id;
+        currentProductPrice = data.price;
+
+        // Update UI
+        const productNameElement = document.getElementById('current-product-name');
+        if (productNameElement) {
+            productNameElement.textContent = data.product_name;
+        }
+
+        // Auto-populate price if available
+        if (data.price) {
+            const priceInput = document.getElementById('actual-price-input');
+            if (priceInput) {
+                priceInput.value = data.price.toFixed(2);
+                console.log('Auto-populated price:', data.price);
+            }
+        }
+
+        // Reset submission counter
+        const submissionCountElement = document.getElementById('submission-count-admin');
+        if (submissionCountElement) {
+            submissionCountElement.textContent = '0';
+        }
+    });
+
+    // Next product button
+    if (document.getElementById('next-product-btn')) {
+        document.getElementById('next-product-btn').addEventListener('click', function() {
+            console.log('Admin requesting next product');
+            socket.emit('price_guesser_next_product');
+            showNotification('Loading next product...', 'info');
+        });
+    }
+
+
+    // Calculate results button
+    if (document.getElementById('calculate-results-btn')) {
+        document.getElementById('calculate-results-btn').addEventListener('click', function() {
+            const actualPrice = document.getElementById('actual-price-input').value;
+
+            if (!actualPrice || parseFloat(actualPrice) <= 0) {
+                showNotification('Please enter a valid price', 'warning');
+                return;
+            }
+
+            if (!currentProductId) {
+                showNotification('No product selected', 'warning');
+                return;
+            }
+
+            console.log('Calculating results for product', currentProductId, 'with actual price', actualPrice);
+            socket.emit('price_guesser_calculate_results', {
+                product_id: currentProductId,
+                actual_price: parseFloat(actualPrice)
+            });
+
+            // Clear price input
+            document.getElementById('actual-price-input').value = '';
+
+            showNotification('Results calculated and displayed!', 'success');
+        });
+    }
+
+    // Listen for price guess submissions
+    socket.on('price_guess_received', function(data) {
+        if (currentProductId && data.product_id === currentProductId) {
+            const submissionCountElement = document.getElementById('submission-count-admin');
+            if (submissionCountElement) {
+                submissionCountElement.textContent = data.total_submissions;
+            }
+            console.log(`Price guess received from ${data.username}. Total: ${data.total_submissions}`);
+        }
+    });
+
+    // Initial setup
+    updateGameStatus();
+    updatePlayerList();
+</script>
+{% endblock %}

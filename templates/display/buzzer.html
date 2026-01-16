@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buzzer - Game Display</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #2c3e50;
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+        }
+        
+        .game-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .game-title {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        
+        .buzzer-status {
+            font-size: 2.5rem;
+            margin: 3rem 0;
+            text-align: center;
+            animation: pulse 1.5s infinite alternate;
+            font-weight: bold;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.7; transform: scale(0.98); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        
+        .scores-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            background-color: #34495e;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .scores-title {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding-bottom: 0.5rem;
+        }
+        
+        .scores-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+        
+        .score-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: rgba(255,255,255,0.1);
+            padding: 0.75rem 1rem;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        
+        .score-item:hover {
+            background-color: rgba(255,255,255,0.15);
+        }
+        
+        .player-name {
+            font-weight: bold;
+        }
+        
+        .player-score {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #3498db;
+            background-color: rgba(0,0,0,0.2);
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        
+        .game-state {
+            font-size: 1.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            background-color: #3498db;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+        
+        .game-state.active {
+            background-color: #2ecc71;
+        }
+        
+        .game-state.inactive {
+            background-color: #e74c3c;
+        }
+        
+        .player-buzzed {
+            font-size: 5rem;
+            color: #e74c3c;
+            text-shadow: 0 0 20px rgba(231, 76, 60, 0.7);
+            animation: buzzIn 0.5s ease-out;
+            margin: 3rem 0;
+            text-align: center;
+        }
+        
+        @keyframes buzzIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .result-indicator {
+            font-size: 3rem;
+            margin: 2rem 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .result-correct {
+            color: #2ecc71;
+            text-shadow: 0 0 15px rgba(46, 204, 113, 0.7);
+        }
+        
+        .result-wrong {
+            color: #e74c3c;
+            text-shadow: 0 0 15px rgba(231, 76, 60, 0.7);
+        }
+
+        /* Silhouette game styles */
+        .silhouette-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 2rem auto;
+            max-width: 90vw;
+            max-height: 70vh;
+        }
+
+        .silhouette-image-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 70vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .silhouette-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            transform: scale(0.25);
+            filter: brightness(0);
+            transition: none;
+        }
+
+        /* Growth animation - zoom from 25% to 100% */
+        .silhouette-image.growing {
+            animation: silhouette-grow 25s linear forwards;
+        }
+
+        .silhouette-image.paused {
+            animation-play-state: paused;
+        }
+
+        @keyframes silhouette-grow {
+            from { transform: scale(0.25); }
+            to { transform: scale(1); }
+        }
+
+        /* Color reveal animation - fade from black */
+        .silhouette-image.revealing-color {
+            animation: color-reveal 25s linear forwards;
+        }
+
+        @keyframes color-reveal {
+            from { filter: brightness(0); }
+            to { filter: brightness(1); }
+        }
+
+        .silhouette-answer {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #2ecc71;
+            text-shadow: 0 0 20px rgba(46, 204, 113, 0.7);
+            margin-top: 2rem;
+            text-align: center;
+            padding: 1rem 2rem;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-header">
+        <h1 class="game-title">Buzzer</h1>
+        <div id="game-state" class="game-state">Waiting for the game to start</div>
+    </div>
+    
+    <div id="buzzer-status-container">
+        <div id="buzzer-status" class="buzzer-status">No one has buzzed yet</div>
+        <div id="player-buzzed" class="player-buzzed d-none"></div>
+        <div id="result-indicator" class="result-indicator d-none"></div>
+    </div>
+
+    <!-- Silhouette game display -->
+    <div id="silhouette-container" class="silhouette-container d-none">
+        <div class="silhouette-image-wrapper">
+            <img id="silhouette-image" class="silhouette-image" src="" alt="Silhouette">
+        </div>
+        <div id="silhouette-answer" class="silhouette-answer d-none"></div>
+    </div>
+
+    <div class="scores-container">
+        <h2 class="scores-title">Scores</h2>
+        <div id="scores-list" class="scores-list">
+            <!-- Scores will be populated dynamically -->
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        let players = [];
+        let scores = {};
+        
+        // Socket event handlers
+        socket.on('connect', function() {
+            console.log('Display connected to server');
+        });
+        
+        socket.on('buzzer_init', function(data) {
+            players = data.users;
+            renderScoresList();
+            
+            // Reset UI
+            document.getElementById('buzzer-status').classList.remove('d-none');
+            document.getElementById('buzzer-status').textContent = 'No one has buzzed yet';
+            document.getElementById('player-buzzed').classList.add('d-none');
+            document.getElementById('result-indicator').classList.add('d-none');
+            
+            // Set game state
+            const gameState = document.getElementById('game-state');
+            gameState.textContent = 'Waiting for the game to start';
+            gameState.className = 'game-state';
+        });
+        
+        socket.on('buzzer_started', function() {
+            // Update game state
+            const gameState = document.getElementById('game-state');
+            gameState.textContent = 'Buzzer Active';
+            gameState.className = 'game-state active';
+            
+            // Show status
+            document.getElementById('buzzer-status').classList.remove('d-none');
+            document.getElementById('buzzer-status').textContent = 'No one has buzzed yet';
+            
+            // Hide other elements
+            document.getElementById('player-buzzed').classList.add('d-none');
+            document.getElementById('result-indicator').classList.add('d-none');
+            
+            // Play sound
+            playSound('start');
+        });
+        
+        socket.on('buzzer_buzzed', function(data) {
+            // Update game state
+            const gameState = document.getElementById('game-state');
+            gameState.textContent = 'Buzzer Triggered';
+            gameState.className = 'game-state inactive';
+            
+            // Hide status
+            document.getElementById('buzzer-status').classList.add('d-none');
+            
+            // Show player who buzzed
+            const playerBuzzed = document.getElementById('player-buzzed');
+            playerBuzzed.textContent = data.username;
+            playerBuzzed.classList.remove('d-none');
+            
+            // Hide result indicator
+            document.getElementById('result-indicator').classList.add('d-none');
+            
+            // Play sound
+            playSound('buzz');
+        });
+        
+        socket.on('buzzer_reset', function() {
+            // Update game state
+            const gameState = document.getElementById('game-state');
+            gameState.textContent = 'Buzzer Active';
+            gameState.className = 'game-state active';
+            
+            // Show status
+            document.getElementById('buzzer-status').classList.remove('d-none');
+            document.getElementById('buzzer-status').textContent = 'No one has buzzed yet';
+            
+            // Hide other elements
+            document.getElementById('player-buzzed').classList.add('d-none');
+            document.getElementById('result-indicator').classList.add('d-none');
+            
+            // Play sound
+            playSound('reset');
+        });
+        
+        socket.on('buzzer_answer_correct', function(data) {
+            // Show result indicator
+            const resultIndicator = document.getElementById('result-indicator');
+            resultIndicator.textContent = 'CORRECT!';
+            resultIndicator.className = 'result-indicator result-correct';
+            resultIndicator.classList.remove('d-none');
+            
+            // Update scores
+            scores = data.scores;
+            renderScoresList();
+            
+            // Play sound
+            playSound('correct');
+        });
+        
+        socket.on('buzzer_answer_wrong', function(data) {
+            // Show result indicator
+            const resultIndicator = document.getElementById('result-indicator');
+            resultIndicator.textContent = 'WRONG!';
+            resultIndicator.className = 'result-indicator result-wrong';
+            resultIndicator.classList.remove('d-none');
+            
+            // Update scores
+            scores = data.scores;
+            renderScoresList();
+            
+            // Play sound
+            playSound('wrong');
+        });
+        
+        socket.on('buzzer_game_over', function(data) {
+            // Update game state
+            const gameState = document.getElementById('game-state');
+            gameState.textContent = 'Game Over';
+            gameState.className = 'game-state inactive';
+            
+            // Show result
+            const resultIndicator = document.getElementById('result-indicator');
+            resultIndicator.textContent = `Winner: ${data.winner}`;
+            resultIndicator.className = 'result-indicator';
+            resultIndicator.classList.remove('d-none');
+            
+            // Hide other elements
+            document.getElementById('buzzer-status').classList.add('d-none');
+            document.getElementById('player-buzzed').classList.add('d-none');
+            
+            // Update scores
+            scores = data.scores;
+            renderScoresList();
+            
+            // Redirect after delay
+            setTimeout(function() {
+                window.location.href = '/display';
+            }, 10000);
+        });
+        
+        // Render scores list
+        function renderScoresList() {
+            const scoresList = document.getElementById('scores-list');
+            scoresList.innerHTML = '';
+            
+            // Convert scores object to array and sort by score
+            const sortedScores = Object.entries(scores)
+                .sort((a, b) => b[1] - a[1])
+                .map(([username, score]) => ({ username, score }));
+            
+            if (sortedScores.length === 0) {
+                // If no scores yet, show all players with 0
+                players.forEach(player => {
+                    if (player.username !== 'admin') {
+                        const scoreItem = document.createElement('div');
+                        scoreItem.className = 'score-item';
+                        scoreItem.innerHTML = `
+                            <span class="player-name">${player.username}</span>
+                            <span class="player-score">0</span>
+                        `;
+                        scoresList.appendChild(scoreItem);
+                    }
+                });
+            } else {
+                // Show scores
+                sortedScores.forEach(item => {
+                    const scoreItem = document.createElement('div');
+                    scoreItem.className = 'score-item';
+                    scoreItem.innerHTML = `
+                        <span class="player-name">${item.username}</span>
+                        <span class="player-score">${item.score}</span>
+                    `;
+                    scoresList.appendChild(scoreItem);
+                });
+            }
+        }
+        
+        
+        // Play sound effects
+        function playSound(type) {
+            let soundUrl;
+            
+            switch (type) {
+                case 'start':
+                    soundUrl = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAAeAAAbPAAYGBgYJCQkJCQwMDAwMDw8PDw8SEhISEhUVFRUVGBgYGBgbGxsbGx4eHh4eISEhISEkJCQkJCcnJycnKioqKiourq6urq6urq6xsbGxsbS0tLS0t7e3t7e3t7e3t7e6urq6urq6urq6vb29vb2AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA//sQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
+                    break;
+                case 'buzz':
+                    soundUrl = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAAeAAAjMAAaGhoaIyMjIyMrKysrKzQ0NDQ0PT09PT1FRUVFRVhYWFhYYGBgYGBpaWlpaXJycnJyfHx8fHyFhYWFhY2NjY2NlpaWlpaenp6enqenp6enr6+vr6+3t7e3t8bGxsbGzs7Ozs7Ozs7OztbW1tbW3t7e3t7m5ubm5u7u7u7u9vb29vb+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+//sQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
+                    break;
+                case 'reset':
+                    soundUrl = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAAVAAAnEAAZGRkZJCQkJCQvLy8vLzk5OTk5RERERERFRUVERERERUVFRU9PT09PWVlZWVlkZGRkZG5ubm5ueHh4eHiCgoKCgoKCgoKCjIyMjIyWlpaWlqCgoKCgqqqqqqqpqampqampqamp6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr6+vr//sQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
+                    break;
+                case 'correct':
+                    soundUrl = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAAVAAA0mAAcHBwcKCgoKChERERERFRUVFRUampqampqampmZmZmZnZ2dnZ2hoaGhoaGhoaGhoaWlpaWlqampqamtra2trbDw8PDw8PDw8PDw9PT09PT4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy//sQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
+                    break;
+                case 'wrong':
+                    soundUrl = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAAVAAAkOAAbGxsbJiYmJiYyMjIyMj09PT09SUVFRUVFRUVFRUVPT09PT1paWlpaZWVlZWVwcHBwcHx8fHx8iIiIiIiTk5OTk5OTk5OTnZ2dnZ2oqKioqLOzs7Ozs7Ozs7Ozs7Ozs7O+vr6+vr6+vr6+vsbGxsbG0dHR0dHR0dHR0dHR0dHR0eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx//sQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
+                    break;
+            }
+            
+            if (soundUrl) {
+                const audio = new Audio(soundUrl);
+                audio.load(); // Ensure audio is loaded before playing
+                audio.play().catch(err => {
+                    console.error('Error playing sound:', err);
+                    // Don't let sound errors prevent other functionality
+                });
+            }
+        }
+
+        // Display refresh event listeners
+        socket.on('display_refresh', function() {
+            console.log('Display refresh event received');
+            window.location.reload();
+        });
+
+        socket.on('admin_refresh_display', function() {
+            console.log('Admin refresh display event received');
+            window.location.reload();
+        });
+
+        // Admin navigation event listeners
+        socket.on('admin_display_goto_game_board', function() {
+            console.log('Admin navigation: goto game board');
+            window.location.href = '/display';
+        });
+
+        socket.on('admin_display_goto_waiting_room', function() {
+            console.log('Admin navigation: goto waiting room');
+            window.location.href = '/display';
+        });
+
+        // Silhouette game state
+        let silhouetteState = {
+            phase: 'idle', // 'idle', 'growing', 'paused_growth', 'waiting_transition', 'revealing_color', 'complete'
+            startTime: null,
+            pauseTime: null,
+            elapsedTime: 0,
+            transitionTimeout: null
+        };
+
+        // Silhouette game socket listeners
+        socket.on('forward_to_buzzer', function(data) {
+            console.log('Forward to buzzer event:', data);
+
+            // Check if this is a silhouette question
+            if (data.questionData && data.questionData.question_type === 'silhouette') {
+                console.log('Silhouette question detected');
+
+                // Hide buzzer status, show silhouette container
+                document.getElementById('buzzer-status-container').classList.add('d-none');
+                document.getElementById('silhouette-container').classList.remove('d-none');
+
+                // Set image source
+                const silhouetteImage = document.getElementById('silhouette-image');
+                silhouetteImage.src = data.questionData.media_url || '';
+
+                // Reset state
+                resetSilhouetteState();
+            } else {
+                // Regular buzzer question - show buzzer status
+                document.getElementById('buzzer-status-container').classList.remove('d-none');
+                document.getElementById('silhouette-container').classList.add('d-none');
+            }
+        });
+
+        socket.on('silhouette_start_growth', function() {
+            console.log('Silhouette: Start growth');
+            startGrowthAnimation();
+        });
+
+        socket.on('silhouette_pause_growth', function() {
+            console.log('Silhouette: Pause growth');
+            pauseAnimation();
+        });
+
+        socket.on('silhouette_resume_growth', function() {
+            console.log('Silhouette: Resume growth');
+            resumeAnimation();
+        });
+
+        socket.on('silhouette_reveal', function(data) {
+            console.log('Silhouette: Reveal answer', data);
+            revealAnswer(data.answer);
+        });
+
+        // Auto-pause when player buzzes
+        socket.on('silhouette_pause_growth', function() {
+            console.log('Silhouette: Auto-pause due to buzz');
+            pauseAnimation();
+        });
+
+        function resetSilhouetteState() {
+            const silhouetteImage = document.getElementById('silhouette-image');
+            const answerDiv = document.getElementById('silhouette-answer');
+
+            // Clear all animation classes
+            silhouetteImage.classList.remove('growing', 'paused', 'revealing-color');
+            silhouetteImage.style.animation = 'none';
+
+            // Reset to initial state
+            silhouetteImage.style.transform = 'scale(0.25)';
+            silhouetteImage.style.filter = 'brightness(0)';
+
+            // Hide answer
+            answerDiv.classList.add('d-none');
+            answerDiv.textContent = '';
+
+            // Reset state
+            silhouetteState = {
+                phase: 'idle',
+                startTime: null,
+                pauseTime: null,
+                elapsedTime: 0,
+                transitionTimeout: null
+            };
+
+            // Clear any pending transitions
+            if (silhouetteState.transitionTimeout) {
+                clearTimeout(silhouetteState.transitionTimeout);
+            }
+        }
+
+        function startGrowthAnimation() {
+            const silhouetteImage = document.getElementById('silhouette-image');
+
+            // Clear previous animations
+            silhouetteImage.classList.remove('paused', 'revealing-color');
+
+            // Start growth animation
+            silhouetteImage.classList.add('growing');
+            silhouetteState.phase = 'growing';
+            silhouetteState.startTime = Date.now();
+
+            console.log('Growth animation started');
+
+            // Set timeout for when growth completes (25 seconds)
+            setTimeout(function() {
+                if (silhouetteState.phase === 'growing') {
+                    onGrowthComplete();
+                }
+            }, 25000);
+        }
+
+        function pauseAnimation() {
+            const silhouetteImage = document.getElementById('silhouette-image');
+
+            if (silhouetteState.phase === 'growing') {
+                silhouetteImage.classList.add('paused');
+                silhouetteState.phase = 'paused_growth';
+                silhouetteState.pauseTime = Date.now();
+                silhouetteState.elapsedTime += (silhouetteState.pauseTime - silhouetteState.startTime);
+
+                console.log('Animation paused at:', silhouetteState.elapsedTime, 'ms');
+            } else if (silhouetteState.phase === 'revealing_color') {
+                silhouetteImage.classList.add('paused');
+                silhouetteState.phase = 'paused_color';
+                silhouetteState.pauseTime = Date.now();
+                silhouetteState.elapsedTime += (silhouetteState.pauseTime - silhouetteState.startTime);
+
+                console.log('Color reveal paused at:', silhouetteState.elapsedTime, 'ms');
+            }
+        }
+
+        function resumeAnimation() {
+            const silhouetteImage = document.getElementById('silhouette-image');
+
+            if (silhouetteState.phase === 'paused_growth') {
+                silhouetteImage.classList.remove('paused');
+                silhouetteState.phase = 'growing';
+                silhouetteState.startTime = Date.now();
+
+                console.log('Growth animation resumed');
+
+                // Calculate remaining time
+                const remainingTime = 25000 - silhouetteState.elapsedTime;
+                setTimeout(function() {
+                    if (silhouetteState.phase === 'growing') {
+                        onGrowthComplete();
+                    }
+                }, remainingTime);
+
+            } else if (silhouetteState.phase === 'paused_color') {
+                silhouetteImage.classList.remove('paused');
+                silhouetteState.phase = 'revealing_color';
+                silhouetteState.startTime = Date.now();
+
+                console.log('Color reveal resumed');
+            }
+        }
+
+        function onGrowthComplete() {
+            console.log('Growth animation complete, waiting 5 seconds before color reveal');
+
+            silhouetteState.phase = 'waiting_transition';
+
+            // Wait 5 seconds, then start color reveal
+            silhouetteState.transitionTimeout = setTimeout(function() {
+                startColorReveal();
+            }, 5000);
+        }
+
+        function startColorReveal() {
+            const silhouetteImage = document.getElementById('silhouette-image');
+
+            console.log('Starting color reveal animation');
+
+            // Remove growth class, add color reveal class
+            silhouetteImage.classList.remove('growing', 'paused');
+            silhouetteImage.classList.add('revealing-color');
+
+            silhouetteState.phase = 'revealing_color';
+            silhouetteState.startTime = Date.now();
+            silhouetteState.elapsedTime = 0;
+
+            // Set timeout for when color reveal completes (25 seconds)
+            setTimeout(function() {
+                if (silhouetteState.phase === 'revealing_color') {
+                    console.log('Color reveal complete');
+                    silhouetteState.phase = 'complete';
+                }
+            }, 25000);
+        }
+
+        function revealAnswer(answer) {
+            const answerDiv = document.getElementById('silhouette-answer');
+
+            answerDiv.textContent = answer || 'Answer';
+            answerDiv.classList.remove('d-none');
+
+            console.log('Answer revealed:', answer);
+        }
+    </script>
+</body>
+</html>

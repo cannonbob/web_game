@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+
+{% block title %}Question Input - Game Platform{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<style>
+    .input-container {
+        min-height: 70vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .input-card-body {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        padding: 2rem 2rem;
+    }
+
+    .question-display {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #333;
+        text-align: center;
+        margin-bottom: 1.5rem;
+        min-height: 4rem;
+    }
+
+    .answer-input-group {
+        max-width: 600px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    .answer-input {
+        font-size: 1.5rem;
+        padding: 1rem;
+        text-align: center;
+        border: 2px solid #007bff;
+        border-radius: 8px;
+    }
+
+    .answer-input:focus {
+        border-color: #0056b3;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+
+    .submit-btn {
+        font-size: 1.5rem;
+        font-weight: bold;
+        padding: 1rem 3rem;
+        margin-top: 1.5rem;
+        border-radius: 8px;
+        background-color: #28a745;
+        border: none;
+        color: white;
+        transition: all 0.3s ease;
+    }
+
+    .submit-btn:hover:not(:disabled) {
+        background-color: #218838;
+        transform: scale(1.05);
+    }
+
+    .submit-btn:disabled {
+        background-color: #6c757d;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+    .status-message {
+        text-align: center;
+        font-size: 1.2rem;
+        margin-top: 1.5rem;
+        min-height: 2rem;
+    }
+
+    .status-message.success {
+        color: #28a745;
+        font-weight: bold;
+    }
+
+    .status-message.error {
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    .status-message.info {
+        color: #17a2b8;
+    }
+
+    .results-display {
+        display: none;
+        max-width: 800px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .results-display.show {
+        display: block;
+    }
+
+    .result-item {
+        padding: 0.75rem;
+        margin: 0.5rem 0;
+        border-radius: 4px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .result-item.winner {
+        background-color: #d4edda;
+        border: 2px solid #28a745;
+        font-weight: bold;
+    }
+
+    .result-item.correct {
+        background-color: #d4edda;
+        border: 1px solid #28a745;
+    }
+
+    .result-item.incorrect {
+        background-color: #f8d7da;
+        border: 1px solid #dc3545;
+    }
+</style>
+
+<div class="card shadow input-container">
+    <div class="card-header">
+        <h2 class="h4 mb-0">Question Input</h2>
+    </div>
+    <div class="input-card-body">
+        <div class="question-display" id="question-text">
+            Waiting for question...
+        </div>
+
+        <div class="answer-input-group" id="input-form" style="display: none;">
+            <input
+                type="text"
+                id="answer-input"
+                class="form-control answer-input"
+                placeholder="Your answer..."
+                autocomplete="off"
+            />
+            <button id="submit-btn" class="btn submit-btn w-100">
+                Submit Answer
+            </button>
+        </div>
+
+        <div class="status-message" id="status-message"></div>
+
+        <div class="results-display" id="results-display">
+            <h3 class="text-center mb-3">Results</h3>
+            <div id="results-list"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Connect to socket.io
+const socket = io();
+
+// DOM elements
+const questionText = document.getElementById('question-text');
+const inputForm = document.getElementById('input-form');
+const answerInput = document.getElementById('answer-input');
+const submitBtn = document.getElementById('submit-btn');
+const statusMessage = document.getElementById('status-message');
+const resultsDisplay = document.getElementById('results-display');
+const resultsList = document.getElementById('results-list');
+
+// Game variables
+let currentQuestion = null;
+let hasSubmitted = false;
+
+// Socket event handlers
+socket.on('connect', function() {
+    console.log('Connected to Question Input');
+    setStatus('Connected. Ready for questions...', 'info');
+
+    // Request current question in case we missed the initial event
+    socket.emit('request_input_question');
+});
+
+// Handle reconnection - server sends forward_to_input with current question data
+socket.on('forward_to_input', function(data) {
+    console.log('Forwarded to question input (reconnection or initial):', data);
+    handleInputQuestion(data);
+});
+
+// Handle forward to Top 5 (if admin selects a Top 5 question while player is here)
+socket.on('forward_to_top_5', function(data) {
+    console.log('Redirecting to Top 5 page');
+    window.location.href = '/game/top_5';
+});
+
+// Listen to question_selected event (broadcast to all clients)
+socket.on('question_selected', function(data) {
+    console.log('Question selected:', data);
+
+    // Only handle input questions
+    if (!data.questionData || !data.questionData.input_expected) {
+        console.log('Not an input question, ignoring');
+        return;
+    }
+
+    handleInputQuestion(data);
+});
+
+// Function to handle input question data
+function handleInputQuestion(data) {
+    currentQuestion = data.questionData;
+    hasSubmitted = false;
+
+    // Show question
+    questionText.textContent = data.question;
+
+    // Show input form
+    inputForm.style.display = 'block';
+    answerInput.value = '';
+    answerInput.disabled = false;
+    submitBtn.disabled = false;
+
+    // Set placeholder from hint
+    if (currentQuestion.expected_answers && currentQuestion.expected_answers.length > 0) {
+        answerInput.placeholder = currentQuestion.expected_answers[0].hint || 'Your answer...';
+
+        // Set input type based on input_type
+        const inputType = currentQuestion.expected_answers[0].input_type;
+        if (inputType === 'guess') {
+            answerInput.type = 'number';
+            answerInput.step = 'any';
+        } else {
+            answerInput.type = 'text';
+        }
+    }
+
+    // Hide results
+    resultsDisplay.classList.remove('show');
+    setStatus('Enter your answer and submit!', 'info');
+}
+
+// Handle answer submission
+submitBtn.addEventListener('click', function() {
+    if (!currentQuestion || hasSubmitted) return;
+
+    const answer = answerInput.value.trim();
+    if (!answer) {
+        setStatus('Please enter an answer!', 'error');
+        return;
+    }
+
+    // Submit answer via socket
+    socket.emit('submit_answer', {
+        question_id: currentQuestion.id,
+        answer: answer
+    });
+
+    hasSubmitted = true;
+    answerInput.disabled = true;
+    submitBtn.disabled = true;
+    setStatus('Answer submitted! Waiting for other players...', 'success');
+});
+
+// Answer submission confirmed
+socket.on('answer_submitted', function(data) {
+    console.log('Answer submission confirmed:', data);
+    if (data.success) {
+        setStatus('Your answer has been recorded!', 'success');
+    } else {
+        setStatus(data.message || 'Error submitting answer', 'error');
+        hasSubmitted = false;
+        answerInput.disabled = false;
+        submitBtn.disabled = false;
+    }
+});
+
+// Admin closed the round - show results
+socket.on('input_question_results', function(data) {
+    console.log('Results received:', data);
+
+    // Hide input form
+    inputForm.style.display = 'none';
+    setStatus('', '');
+
+    // Display results
+    displayResults(data);
+});
+
+// Reset for next question
+socket.on('reset_input', function() {
+    currentQuestion = null;
+    hasSubmitted = false;
+    questionText.textContent = 'Waiting for next question...';
+    inputForm.style.display = 'none';
+    resultsDisplay.classList.remove('show');
+    setStatus('', '');
+});
+
+// Admin sends players back to game board
+socket.on('return_to_game_board', function() {
+    window.location.href = '/waiting_room';
+});
+
+// Admin sends players to waiting room
+socket.on('admin_players_goto_waiting_room', function() {
+    window.location.href = '/waiting_room';
+});
+
+// Helper function to set status message
+function setStatus(message, type) {
+    statusMessage.textContent = message;
+    statusMessage.className = 'status-message ' + type;
+}
+
+// Helper function to display results
+function displayResults(data) {
+    resultsList.innerHTML = '';
+
+    if (data.input_type === 'guess') {
+        // Number guessing results
+        const correctAnswer = data.correct_answer;
+        let html = `<div class="text-center mb-3">
+            <strong>Correct Answer:</strong> ${correctAnswer}
+        </div>`;
+
+        // Sort and display user results
+        data.user_results.forEach((result, index) => {
+            const playerName = result.username || `Player ${result.user_id}`;
+            const className = result.is_winner ? 'winner' : '';
+
+            html += `<div class="result-item ${className}">
+                <span>${index + 1}. ${playerName}: ${result.guess}</span>
+                <span>Distance: ${result.distance.toFixed(2)}</span>
+            </div>`;
+        });
+
+        resultsList.innerHTML = html;
+    } else {
+        // Normal text question results
+        let html = `<div class="text-center mb-3">
+            <strong>Accepted Answers:</strong> ${data.expected_answers.join(', ')}
+        </div>`;
+
+        // Display user results
+        data.user_results.forEach(result => {
+            const playerName = result.username || `Player ${result.user_id}`;
+            const className = result.is_correct ? 'correct' : 'incorrect';
+            const icon = result.is_correct ? '✓' : '✗';
+
+            html += `<div class="result-item ${className}">
+                <span>${icon} ${playerName}: ${result.answer_raw}</span>
+                <span>${result.similarity ? result.similarity.toFixed(0) + '%' : ''}</span>
+            </div>`;
+        });
+
+        resultsList.innerHTML = html;
+    }
+
+    resultsDisplay.classList.add('show');
+}
+
+// Allow Enter key to submit
+answerInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && !submitBtn.disabled) {
+        submitBtn.click();
+    }
+});
+</script>
+{% endblock %}

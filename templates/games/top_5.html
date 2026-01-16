@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+
+{% block title %}Top 5 - Game Platform{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<style>
+    .top5-container {
+        min-height: 70vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .top5-card-body {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 2rem;
+    }
+
+    .input-section {
+        max-width: 600px;
+        margin: 0 auto 2rem;
+        width: 100%;
+    }
+
+    .answer-input {
+        font-size: 1.3rem;
+        padding: 0.8rem;
+        text-align: center;
+        border: 2px solid #007bff;
+        border-radius: 8px;
+    }
+
+    .answer-input:focus {
+        border-color: #0056b3;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+
+    .answer-input:disabled {
+        background-color: #e9ecef;
+        cursor: not-allowed;
+    }
+
+    .submit-btn {
+        font-size: 1.3rem;
+        font-weight: bold;
+        padding: 0.8rem 2rem;
+        margin-top: 1rem;
+        border-radius: 8px;
+        background-color: #28a745;
+        border: none;
+        color: white;
+        transition: all 0.3s ease;
+    }
+
+    .submit-btn:hover:not(:disabled) {
+        background-color: #218838;
+        transform: scale(1.05);
+    }
+
+    .submit-btn:disabled {
+        background-color: #6c757d;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+    .guesses-section {
+        max-width: 600px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    .guesses-header {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #555;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+
+    .guesses-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .guess-item {
+        background-color: #f8f9fa;
+        border: 2px solid #dee2e6;
+        border-radius: 6px;
+        padding: 0.8rem 1.2rem;
+        margin-bottom: 0.5rem;
+        font-size: 1.1rem;
+        text-align: center;
+        color: #333;
+        transition: all 0.3s ease;
+    }
+
+    .guess-item.new {
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateY(-20px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .status-message {
+        text-align: center;
+        font-size: 1.1rem;
+        margin-top: 1rem;
+        min-height: 1.5rem;
+        font-weight: 500;
+    }
+
+    .status-message.success {
+        color: #28a745;
+    }
+
+    .status-message.error {
+        color: #dc3545;
+    }
+
+    .status-message.info {
+        color: #17a2b8;
+    }
+
+    .guess-counter {
+        text-align: center;
+        font-size: 1rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+    }
+</style>
+
+<div class="card shadow top5-container">
+    <div class="card-header">
+        <h2 class="h4 mb-0">Top 5 Auto-Complete</h2>
+    </div>
+    <div class="top5-card-body">
+        <div class="input-section" id="input-section" style="display: none;">
+            <input
+                type="text"
+                id="answer-input"
+                class="form-control answer-input"
+                placeholder="Enter your guess..."
+                autocomplete="off"
+            />
+            <button id="submit-btn" class="btn submit-btn w-100">
+                Submit Guess
+            </button>
+            <div class="guess-counter" id="guess-counter">0 / 5 guesses</div>
+        </div>
+
+        <div class="guesses-section" id="guesses-section" style="display: none;">
+            <div class="guesses-header">Your Guesses:</div>
+            <ul class="guesses-list" id="guesses-list"></ul>
+        </div>
+
+        <div class="status-message" id="status-message"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Connect to socket.io
+const socket = io();
+
+// DOM elements
+const inputSection = document.getElementById('input-section');
+const answerInput = document.getElementById('answer-input');
+const submitBtn = document.getElementById('submit-btn');
+const guessCounter = document.getElementById('guess-counter');
+const guessesSection = document.getElementById('guesses-section');
+const guessesList = document.getElementById('guesses-list');
+const statusMessage = document.getElementById('status-message');
+
+// Game variables
+let currentQuestion = null;
+let guesses = [];
+const MAX_GUESSES = 5;
+
+// Socket event handlers
+socket.on('connect', function() {
+    console.log('Connected to Top 5 game');
+    setStatus('Connected. Waiting for question...', 'info');
+});
+
+// Handle reconnection - server sends forward_to_top_5 with current question data
+socket.on('forward_to_top_5', function(data) {
+    console.log('Forwarded to Top 5 (reconnection or initial):', data);
+    handleTop5Question(data);
+});
+
+// Listen to question_selected event (broadcast to all clients)
+socket.on('question_selected', function(data) {
+    console.log('Question selected:', data);
+
+    // Only handle auto-complete questions (input_type = 'ac')
+    if (!data.questionData || !data.questionData.input_expected) {
+        console.log('Not an input question, ignoring');
+        return;
+    }
+
+    // Check if it's an auto-complete question (question_type = 'ac')
+    if (data.questionData.question_type === 'ac') {
+        handleTop5Question(data);
+    } else {
+        console.log('Not an auto-complete question, ignoring');
+    }
+});
+
+// Function to handle Top 5 question data
+function handleTop5Question(data) {
+    currentQuestion = data.questionData;
+    guesses = [];
+
+    // Show input section
+    inputSection.style.display = 'block';
+    answerInput.value = '';
+
+    // Set placeholder
+    answerInput.placeholder = 'Enter your guess...';
+
+    // Clear guesses list
+    guessesList.innerHTML = '';
+
+    // Check if there are previous guesses to restore (for reconnection)
+    if (data.previousGuesses && data.previousGuesses.length > 0) {
+        console.log('Restoring previous guesses:', data.previousGuesses);
+        guesses = [...data.previousGuesses];
+
+        // Display each previous guess
+        guesses.forEach(guess => {
+            addGuessToList(guess);
+        });
+
+        // Show guesses section
+        guessesSection.style.display = 'block';
+
+        // Check if player has already submitted max guesses
+        if (guesses.length >= MAX_GUESSES) {
+            answerInput.disabled = true;
+            submitBtn.disabled = true;
+            setStatus('You have already submitted 5 guesses!', 'info');
+        } else {
+            answerInput.disabled = false;
+            submitBtn.disabled = false;
+            setStatus(`You have ${guesses.length}/5 guesses. Continue guessing!`, 'info');
+        }
+    } else {
+        // No previous guesses, start fresh
+        answerInput.disabled = false;
+        submitBtn.disabled = false;
+        guessesSection.style.display = 'none';
+        setStatus('Enter your guesses! (Max 5)', 'info');
+    }
+
+    // Update counter
+    updateGuessCounter();
+}
+
+// Handle answer submission
+submitBtn.addEventListener('click', function() {
+    submitGuess();
+});
+
+// Allow Enter key to submit
+answerInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && !submitBtn.disabled) {
+        submitGuess();
+    }
+});
+
+function submitGuess() {
+    if (!currentQuestion) return;
+
+    const answer = answerInput.value.trim();
+    if (!answer) {
+        setStatus('Please enter an answer!', 'error');
+        return;
+    }
+
+    if (guesses.length >= MAX_GUESSES) {
+        setStatus('You have already submitted 5 guesses!', 'error');
+        return;
+    }
+
+    // Check for duplicate (case-insensitive)
+    const lowerAnswer = answer.toLowerCase();
+    if (guesses.some(g => g.toLowerCase() === lowerAnswer)) {
+        setStatus('You already guessed that!', 'error');
+        return;
+    }
+
+    // Submit answer via socket
+    socket.emit('submit_top_5_answer', {
+        question_id: currentQuestion.id,
+        answer: answer
+    });
+
+    // Add to local guesses list
+    guesses.push(answer);
+    addGuessToList(answer);
+
+    // Clear input
+    answerInput.value = '';
+    answerInput.focus();
+
+    // Update counter
+    updateGuessCounter();
+
+    // Show guesses section if first guess
+    if (guesses.length === 1) {
+        guessesSection.style.display = 'block';
+    }
+
+    // Disable input if max guesses reached
+    if (guesses.length >= MAX_GUESSES) {
+        answerInput.disabled = true;
+        submitBtn.disabled = true;
+        setStatus('All 5 guesses submitted! Waiting for results...', 'success');
+    } else {
+        setStatus(`Guess ${guesses.length} submitted!`, 'success');
+    }
+}
+
+// Add guess to the displayed list
+function addGuessToList(guess) {
+    const li = document.createElement('li');
+    li.className = 'guess-item new';
+    li.textContent = guess;
+    guessesList.appendChild(li);
+
+    // Remove animation class after it completes
+    setTimeout(() => {
+        li.classList.remove('new');
+    }, 300);
+}
+
+// Update guess counter
+function updateGuessCounter() {
+    guessCounter.textContent = `${guesses.length} / ${MAX_GUESSES} guesses`;
+}
+
+// Answer submission confirmed
+socket.on('top_5_answer_submitted', function(data) {
+    console.log('DEBUG: Answer submission confirmed:', data);
+    console.log('DEBUG: Current guesses array length:', guesses.length);
+    console.log('DEBUG: Input disabled?', answerInput.disabled);
+    console.log('DEBUG: Button disabled?', submitBtn.disabled);
+
+    if (!data.success) {
+        console.log('DEBUG: Submission failed, rolling back');
+        // Remove the last guess if submission failed
+        if (guesses.length > 0) {
+            guesses.pop();
+            guessesList.removeChild(guessesList.lastChild);
+            updateGuessCounter();
+
+            // Re-enable input
+            answerInput.disabled = false;
+            submitBtn.disabled = false;
+        }
+        setStatus(data.message || 'Error submitting answer', 'error');
+    } else {
+        console.log('DEBUG: Submission successful, inputs should remain enabled');
+    }
+});
+
+// Admin closed the round - results will be shown on display
+socket.on('top_5_results', function(data) {
+    console.log('Results event received:', data);
+
+    // Disable input
+    inputSection.style.display = 'none';
+    setStatus('Round ended! Check the display for results.', 'info');
+});
+
+// Reset for next question
+socket.on('reset_top_5', function() {
+    currentQuestion = null;
+    guesses = [];
+    inputSection.style.display = 'none';
+    guessesSection.style.display = 'none';
+    guessesList.innerHTML = '';
+    setStatus('', '');
+});
+
+// Admin sends players back to game board
+socket.on('return_to_game_board', function() {
+    window.location.href = '/waiting_room';
+});
+
+// Admin sends players to waiting room
+socket.on('admin_players_goto_waiting_room', function() {
+    window.location.href = '/waiting_room';
+});
+
+// Helper function to set status message
+function setStatus(message, type) {
+    statusMessage.textContent = message;
+    statusMessage.className = 'status-message ' + type;
+}
+</script>
+{% endblock %}

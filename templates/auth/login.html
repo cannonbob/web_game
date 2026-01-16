@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Game Platform{% endblock %}
+
+{% block container_class %}d-flex justify-content-center align-items-center min-vh-100{% endblock %}
+
+{% block header %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="card shadow-lg">
+    <div class="card-header">
+        <h1 class="h4 mb-0">Welcome to Game Platform</h1>
+    </div>
+    <div class="card-body">
+        <form method="post" action="{{ url_for('login') }}">
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="username" name="username" required autofocus>
+                {% if error %}
+                <div class="text-danger mt-2">{{ error }}</div>
+                {% endif %}
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Enter Game</button>
+        </form>
+    </div>
+    <div class="card-footer text-muted text-center">
+        <small>Enter your username to join the game</small>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        const username = document.getElementById('username').value.trim();
+        
+        if (!username) {
+            e.preventDefault();
+            alert('Please enter a username');
+            return;
+        }
+        
+        // Store in local storage to persist between page reloads
+        localStorage.setItem('username', username);
+    });
+    
+    // Restore from local storage if available
+    const savedUsername = localStorage.getItem('username');
+    if (savedUsername) {
+        document.getElementById('username').value = savedUsername;
+    }
+});
+</script>
+{% endblock %}
