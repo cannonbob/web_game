@@ -257,6 +257,9 @@
                             <button class="btn btn-primary reset-buzzer">Reset Buzzer</button>
                             <button class="btn btn-success correct-answer">Correct Answer</button>
                             <button class="btn btn-warning wrong-answer">Wrong Answer</button>
+                            <button class="btn btn-danger reveal-answer" id="reveal-answer">
+                                <i class="fas fa-eye me-1"></i>Reveal Answer
+                            </button>
                             <button class="btn btn-secondary back-to-board">Send Players Back</button>
                         </div>
                     </div>
@@ -772,6 +775,10 @@
         if (e.target.id === 'reveal-silhouette') {
             console.log('Reveal Silhouette button clicked');
             socket.emit('silhouette_reveal');
+        }
+        if (e.target.id === 'reveal-answer' || e.target.closest('#reveal-answer')) {
+            console.log('Reveal Answer button clicked');
+            socket.emit('buzzer_reveal_answer');
         }
         if (e.target.classList.contains('next-item')) {
             console.log('Next Item button clicked');

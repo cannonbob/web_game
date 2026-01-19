@@ -120,6 +120,12 @@
             window.location.href = '/waiting_room';
         }, 2000);
     });
+
+    // Fallback handler for general game_ended event (in case geo_guessr_game_over was missed)
+    socket.on('game_ended', function(data) {
+        console.log('Game ended event received, redirecting to waiting room');
+        window.location.href = '/waiting_room';
+    });
     
     // Initialize map
     function initializeMap() {

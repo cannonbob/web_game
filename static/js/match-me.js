@@ -194,6 +194,13 @@ socket.on('match_me_game_over', function(data) {
     window.location.href = '/waiting_room';
 });
 
+// Fallback handler for general game_ended event (in case match_me_game_over was missed)
+socket.on('game_ended', function(data) {
+    console.log('Game ended event received, redirecting to waiting room');
+    gameActive = false;
+    window.location.href = '/waiting_room';
+});
+
 // Navigation listeners
 socket.on('return_to_game_board', function() {
     window.location.href = '/waiting_room';

@@ -1279,6 +1279,13 @@ def handle_end_game():
     if 'username' in session and session['username'] == 'admin':
         print("Admin ending the current game")
 
+        # Clear current question data to prevent reconnection issues
+        global current_question_data, current_item_index, total_items
+        current_question_data = None
+        current_item_index = 0
+        total_items = 0
+        print("Cleared current question data")
+
         # End the game using the game manager
         success = game_manager.end_game()
 
@@ -2434,12 +2441,37 @@ def handle_silhouette_reveal():
         global current_question_data
         answer_text = ""
         if current_question_data and current_question_data.get('expected_answers'):
-            # Get the first expected answer
+            # Get all expected answers
             answers = current_question_data.get('expected_answers', [])
             if answers:
-                answer_text = answers[0].get('answer_raw', '')
+                answer_texts = [ans.get('answer_raw', '') for ans in answers if ans.get('answer_raw')]
+                answer_text = ' / '.join(answer_texts)
 
         emit('silhouette_reveal', {
+            'answer': answer_text
+        }, broadcast=True)
+
+@socketio.on('buzzer_reveal_answer')
+def handle_buzzer_reveal_answer():
+    """Handle admin revealing the answer for any buzzer question"""
+    if 'username' in session and session['username'] == 'admin':
+        print("Admin revealed buzzer answer")
+        global current_question_data
+        answer_text = ""
+
+        if current_question_data:
+            # Try expected_answers first
+            if current_question_data.get('expected_answers'):
+                answers = current_question_data.get('expected_answers', [])
+                if answers:
+                    answer_texts = [ans.get('answer_raw', '') for ans in answers if ans.get('answer_raw')]
+                    answer_text = ' / '.join(answer_texts)
+            # Fallback to simple answer field
+            if not answer_text and current_question_data.get('answer'):
+                answer_text = current_question_data.get('answer', '')
+
+        print(f"Revealing answer: {answer_text}")
+        emit('buzzer_reveal_answer', {
             'answer': answer_text
         }, broadcast=True)
 

@@ -91,6 +91,7 @@ class GeoGuessrLocation(db.Model):
     name = db.Column('location_name', db.String(100), nullable=False)
     latitude = db.Column('lat', db.Float, nullable=False)
     longitude = db.Column('lng', db.Float, nullable=False)
+    loc_json = db.Column(db.JSON, nullable=True)  # GeoJSON for area-based locations
 
     # Relationship to question
     question = db.relationship('Question', backref='geo_location')
@@ -101,7 +102,8 @@ class GeoGuessrLocation(db.Model):
             'question_id': self.question_id,
             'location_name': self.name,
             'latitude': self.latitude,
-            'longitude': self.longitude
+            'longitude': self.longitude,
+            'loc_json': self.loc_json
         }
 
 
@@ -206,7 +208,7 @@ class Question(db.Model):
             'movie_id': self.movie_id,
             'items': [item.to_dict() for item in self.question_items],
             'order_items': [item.to_dict() for item in self.order_items],
-            'expected_answers': [ans.to_dict() for ans in self.expected_answers] if self.input_expected else [],
+            'expected_answers': [ans.to_dict() for ans in self.expected_answers],
             'sorting_categories': [cat.to_dict() for cat in self.sorting_categories],
             'sorting_items': [item.to_dict() for item in self.sorting_items]
         }

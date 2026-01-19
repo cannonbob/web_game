@@ -400,17 +400,30 @@
         }
 
         .silhouette-answer {
-            font-size: 4rem;
-            font-weight: bold;
-            color: #2ecc71;
-            text-shadow: 0 0 30px rgba(46, 204, 113, 0.9);
-            margin-top: 2rem;
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: #ecf0f1;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            margin-top: 1.5rem;
             text-align: center;
-            padding: 1.5rem 3rem;
-            background-color: rgba(0, 0, 0, 0.7);
-            border-radius: 15px;
-            border: 3px solid #2ecc71;
+            padding: 1rem 2rem;
+            background-color: rgba(52, 152, 219, 0.25);
+            border-radius: 10px;
+            border: 2px solid #3498db;
         }
+
+        .buzzer-answer {
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: #ecf0f1;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            margin-top: 1.5rem;
+            text-align: center;
+            padding: 1rem 2rem;
+            background-color: rgba(52, 152, 219, 0.25);
+            border-radius: 10px;
+            border: 2px solid #3498db;
+  }
 
     </style>
 </head>
@@ -431,6 +444,7 @@
         </div>
         <div class="question-content-inner">
             <div class="question-body" id="question-body">Question content goes here...</div>
+            <div id="buzzer-answer" class="buzzer-answer d-none"></div>
         </div>
         <button class="close-button" id="close-button">Close</button>
     </div>
@@ -1671,6 +1685,12 @@
             currentQuestionIsMovie = false;
             // Reset silhouette state when closing question
             resetSilhouetteState();
+            // Hide buzzer answer
+            const buzzerAnswer = document.getElementById('buzzer-answer');
+            if (buzzerAnswer) {
+                buzzerAnswer.classList.add('d-none');
+                buzzerAnswer.textContent = '';
+            }
         }
 
         // Get category name from ID
@@ -1773,6 +1793,15 @@
         socket.on('silhouette_reveal', function(data) {
             console.log('Silhouette: Reveal answer', data);
             revealAnswer(data.answer);
+        });
+
+        socket.on('buzzer_reveal_answer', function(data) {
+            console.log('Buzzer: Reveal answer', data);
+            const answerDiv = document.getElementById('buzzer-answer');
+            if (answerDiv) {
+                answerDiv.textContent = data.answer || 'Answer';
+                answerDiv.classList.remove('d-none');
+            }
         });
 
         function resetSilhouetteState() {

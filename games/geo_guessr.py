@@ -3,6 +3,7 @@ from models.user import User
 from db import db
 from flask import session
 import math
+from shapely.geometry import shape, Point
 
 class GeoGuessrGame(BaseGame):
     def __init__(self, socketio, location_data=None, media_url=None):
@@ -96,11 +97,21 @@ class GeoGuessrGame(BaseGame):
         # Get location name
         location_name = location.get('location_name') if isinstance(location, dict) else location.name
 
+        # Prepare location data
+        location_data = location if isinstance(location, dict) else location.to_dict()
+
+        # If loc_json is available, update lat/lng to use polygon centroid
+        if location_data.get('loc_json'):
+            centroid_lat, centroid_lon = self.get_polygon_centroid(location_data['loc_json'])
+            location_data['latitude'] = centroid_lat
+            location_data['longitude'] = centroid_lon
+            print(f"GeoGuessr: Using polygon centroid: lat={centroid_lat}, lon={centroid_lon}")
+
         # Update game state
         self.update_game_state({
             'status': 'active',
             'current_round': self.current_round,
-            'current_location': location if isinstance(location, dict) else location.to_dict(),
+            'current_location': location_data,
             'player_guesses': {}
         })
 
@@ -137,15 +148,27 @@ class GeoGuessrGame(BaseGame):
         # Calculate distances for all players and add to cumulative total
         print("GeoGuessr: Calculating distances...")
         results = {}
+        loc_json = current_location.get('loc_json')
+
         for username, guess in player_guesses.items():
             print(f"GeoGuessr: Processing guess for {username}")
-            distance = self.calculate_distance(
-                current_location['latitude'], 
-                current_location['longitude'],
-                guess['latitude'],
-                guess['longitude']
-            )
-            print(f"GeoGuessr: Distance calculated: {distance:.2f} km")
+
+            # Use area-based calculation if loc_json is available
+            if loc_json:
+                distance = self.calculate_distance_to_area(
+                    loc_json,
+                    guess['latitude'],
+                    guess['longitude']
+                )
+                print(f"GeoGuessr: Area-based distance calculated: {distance:.2f} km")
+            else:
+                distance = self.calculate_distance(
+                    current_location['latitude'],
+                    current_location['longitude'],
+                    guess['latitude'],
+                    guess['longitude']
+                )
+                print(f"GeoGuessr: Point-based distance calculated: {distance:.2f} km")
             
             # Add to cumulative distance
             if username not in player_total_distances:
@@ -281,16 +304,62 @@ class GeoGuessrGame(BaseGame):
         lon1 = math.radians(lon1)
         lat2 = math.radians(lat2)
         lon2 = math.radians(lon2)
-        
+
         # Haversine formula
         dlon = lon2 - lon1
         dlat = lat2 - lat1
         a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
         c = 2 * math.asin(math.sqrt(a))
         r = 6371  # Radius of earth in kilometers
-        
+
         return c * r
-    
+
+    def calculate_distance_to_area(self, loc_json, guess_lat, guess_lon):
+        """Calculate the distance from a guess to an area (GeoJSON polygon).
+        Returns 0 if the guess is inside the area, otherwise returns
+        the distance to the nearest edge in kilometers."""
+        # Extract geometry from GeoJSON (handle FeatureCollection or direct geometry)
+        if loc_json.get('type') == 'FeatureCollection':
+            geometry = loc_json['features'][0]['geometry']
+        elif loc_json.get('type') == 'Feature':
+            geometry = loc_json['geometry']
+        else:
+            geometry = loc_json
+
+        # Create Shapely objects
+        polygon = shape(geometry)
+        guess_point = Point(guess_lon, guess_lat)  # Note: Shapely uses (lon, lat) order
+
+        # Check if point is inside polygon
+        if polygon.contains(guess_point):
+            return 0.0
+
+        # Find nearest point on polygon boundary
+        nearest_point = polygon.exterior.interpolate(polygon.exterior.project(guess_point))
+        nearest_lon = nearest_point.x
+        nearest_lat = nearest_point.y
+
+        # Calculate geodesic distance using Haversine
+        return self.calculate_distance(guess_lat, guess_lon, nearest_lat, nearest_lon)
+
+    def get_polygon_centroid(self, loc_json):
+        """Calculate the centroid of a GeoJSON polygon.
+        Returns (latitude, longitude) tuple."""
+        # Extract geometry from GeoJSON (handle FeatureCollection or direct geometry)
+        if loc_json.get('type') == 'FeatureCollection':
+            geometry = loc_json['features'][0]['geometry']
+        elif loc_json.get('type') == 'Feature':
+            geometry = loc_json['geometry']
+        else:
+            geometry = loc_json
+
+        # Create Shapely polygon and get centroid
+        polygon = shape(geometry)
+        centroid = polygon.centroid
+
+        # Return as (lat, lon) - Shapely uses (lon, lat) internally
+        return (centroid.y, centroid.x)
+
     def calculate_scores(self):
         """Calculate scores after the round
         Award 1 point to all players within 250m of the location

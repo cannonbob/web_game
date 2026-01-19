@@ -144,7 +144,7 @@
         // Clear existing markers from the inline map
         function clearInlineResultsMap() {
             inlineResultsMap.eachLayer(function(layer) {
-                if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                if (layer instanceof L.Marker || layer instanceof L.Polyline || layer instanceof L.GeoJSON) {
                     inlineResultsMap.removeLayer(layer);
                 }
             });
@@ -153,22 +153,41 @@
         
         // Add markers for the inline location and player guesses
         function addInlineResultsMarkers(data) {
-            // Add location marker
+            // Add location marker (pin at centroid)
             const locationIcon = L.icon({
                 iconUrl: 'https://cdn0.iconfinder.com/data/icons/small-n-flat/24/678111-map-marker-512.png',
                 iconSize: [24, 24],
                 iconAnchor: [12, 24],
                 popupAnchor: [0, -24]
             });
-            
+
             const locationMarker = L.marker([data.location.latitude, data.location.longitude], {
                 icon: locationIcon
             }).addTo(inlineResultsMap);
-            
-            locationMarker.bindPopup(`<strong>${data.location.name}</strong>`);
-            
+
+            locationMarker.bindPopup(`<strong>${data.location.location_name || data.location.name}</strong>`);
+
             // Collect all coordinates for proper bounds calculation
             const allCoordinates = [[data.location.latitude, data.location.longitude]];
+
+            // Add polygon if loc_json is available
+            if (data.location.loc_json) {
+                const geoJsonLayer = L.geoJSON(data.location.loc_json, {
+                    style: {
+                        color: '#dc3545',        // Red border
+                        weight: 2,
+                        fillColor: '#dc3545',    // Red fill
+                        fillOpacity: 0.3         // 30% transparency
+                    }
+                }).addTo(inlineResultsMap);
+
+                // Add polygon bounds to our coordinates collection
+                const polygonBounds = geoJsonLayer.getBounds();
+                if (polygonBounds.isValid()) {
+                    allCoordinates.push([polygonBounds.getNorthEast().lat, polygonBounds.getNorthEast().lng]);
+                    allCoordinates.push([polygonBounds.getSouthWest().lat, polygonBounds.getSouthWest().lng]);
+                }
+            }
             
             // Add player markers and collect their coordinates
             data.players.forEach((player, index) => {

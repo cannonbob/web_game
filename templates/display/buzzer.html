@@ -206,6 +206,19 @@
             background-color: rgba(0, 0, 0, 0.5);
             border-radius: 10px;
         }
+
+        .buzzer-answer {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #f1c40f;
+            text-shadow: 0 0 20px rgba(241, 196, 15, 0.7);
+            margin: 2rem auto;
+            text-align: center;
+            padding: 1rem 2rem;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            max-width: 80%;
+        }
     </style>
 </head>
 <body>
@@ -218,6 +231,7 @@
         <div id="buzzer-status" class="buzzer-status">No one has buzzed yet</div>
         <div id="player-buzzed" class="player-buzzed d-none"></div>
         <div id="result-indicator" class="result-indicator d-none"></div>
+        <div id="buzzer-answer" class="buzzer-answer d-none"></div>
     </div>
 
     <!-- Silhouette game display -->
@@ -267,15 +281,16 @@
             const gameState = document.getElementById('game-state');
             gameState.textContent = 'Buzzer Active';
             gameState.className = 'game-state active';
-            
+
             // Show status
             document.getElementById('buzzer-status').classList.remove('d-none');
             document.getElementById('buzzer-status').textContent = 'No one has buzzed yet';
-            
+
             // Hide other elements
             document.getElementById('player-buzzed').classList.add('d-none');
             document.getElementById('result-indicator').classList.add('d-none');
-            
+            document.getElementById('buzzer-answer').classList.add('d-none');
+
             // Play sound
             playSound('start');
         });
@@ -306,15 +321,16 @@
             const gameState = document.getElementById('game-state');
             gameState.textContent = 'Buzzer Active';
             gameState.className = 'game-state active';
-            
+
             // Show status
             document.getElementById('buzzer-status').classList.remove('d-none');
             document.getElementById('buzzer-status').textContent = 'No one has buzzed yet';
-            
+
             // Hide other elements
             document.getElementById('player-buzzed').classList.add('d-none');
             document.getElementById('result-indicator').classList.add('d-none');
-            
+            document.getElementById('buzzer-answer').classList.add('d-none');
+
             // Play sound
             playSound('reset');
         });
@@ -340,15 +356,22 @@
             resultIndicator.textContent = 'WRONG!';
             resultIndicator.className = 'result-indicator result-wrong';
             resultIndicator.classList.remove('d-none');
-            
+
             // Update scores
             scores = data.scores;
             renderScoresList();
-            
+
             // Play sound
             playSound('wrong');
         });
-        
+
+        socket.on('buzzer_reveal_answer', function(data) {
+            console.log('Buzzer: Reveal answer', data);
+            const answerDiv = document.getElementById('buzzer-answer');
+            answerDiv.textContent = data.answer || 'Answer';
+            answerDiv.classList.remove('d-none');
+        });
+
         socket.on('buzzer_game_over', function(data) {
             // Update game state
             const gameState = document.getElementById('game-state');
