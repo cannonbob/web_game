@@ -371,7 +371,7 @@
             width: auto;
             height: auto;
             object-fit: contain;
-            filter: brightness(0);
+            filter: brightness(0) saturate(0) contrast(1);
             clip-path: circle(0% at 50% 50%);
         }
 
@@ -386,17 +386,21 @@
 
         @keyframes circle-grow {
             from { clip-path: circle(0% at 50% 50%); }
-            to { clip-path: circle(75% at 50% 50%); }
+            to { clip-path: circle(65% at 50% 50%); }
         }
 
-        /* Color reveal animation - fade from black to actual colors */
+        /* Color reveal animation - flash to grey, then color populates */
         .silhouette-image.revealing-color {
-            animation: color-reveal 12.5s linear forwards;
+            animation: color-reveal 12s linear forwards;
         }
 
         @keyframes color-reveal {
-            from { filter: brightness(0); }
-            to { filter: brightness(1); }
+            0%   { filter: brightness(0.4) saturate(0) contrast(2.5); }
+            30%  { filter: brightness(0.5) saturate(0.05) contrast(2.2); }
+            50%  { filter: brightness(0.6) saturate(0.15) contrast(1.8); }
+            70%  { filter: brightness(0.75) saturate(0.35) contrast(1.5); }
+            85%  { filter: brightness(0.85) saturate(0.6) contrast(1.25); }
+            100% { filter: brightness(1) saturate(1) contrast(1); }
         }
 
         .silhouette-answer {
@@ -423,7 +427,72 @@
             background-color: rgba(52, 152, 219, 0.25);
             border-radius: 10px;
             border: 2px solid #3498db;
-  }
+        }
+
+        /* Font Guesser styles */
+        .fg-game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            min-height: 200px;
+        }
+
+        .fg-letter-display {
+            font-size: 8rem;
+            letter-spacing: 12px;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            min-height: 200px;
+            margin-top: 180px;
+            row-gap: 200px;
+        }
+
+        .fg-letter-slot {
+            width: 1.2ch;
+            display: inline-block;
+            text-align: center;
+            position: relative;
+            height: 1.5em;
+        }
+
+        .fg-letter-slot.space {
+            width: 0.6ch;
+        }
+
+        .fg-letter {
+            display: inline-block;
+            position: absolute;
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+        }
+
+        .fg-letter.correct {
+            color: #2ecc71;
+            text-shadow: 0 0 20px rgba(46, 204, 113, 0.5);
+        }
+
+        .fg-letter.animating {
+            animation-duration: 1.2s;
+            animation-timing-function: linear;
+            animation-fill-mode: forwards;
+        }
+
+        .fg-answer {
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: #2ecc71;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            margin-top: 1.5rem;
+            text-align: center;
+            padding: 1rem 2rem;
+            background-color: rgba(46, 204, 113, 0.25);
+            border-radius: 10px;
+            border: 2px solid #2ecc71;
+        }
 
     </style>
 </head>
@@ -1213,6 +1282,15 @@
                         `;
                     }
                     break;
+
+                case 'fg':
+                    mediaHTML += `
+                        <div class="fg-game-container">
+                            <div id="fg-letter-display" class="fg-letter-display"></div>
+                            <div id="fg-answer" class="fg-answer d-none"></div>
+                        </div>
+                    `;
+                    break;
             }
 
             mediaHTML += '</div>';
@@ -1813,9 +1891,9 @@
                 silhouetteImage.classList.remove('growing', 'paused', 'revealing-color');
                 silhouetteImage.style.animation = 'none';
 
-                // Reset to initial state - invisible circle, black filter
+                // Reset to initial state - invisible circle, black desaturated filter
                 silhouetteImage.style.clipPath = 'circle(0% at 50% 50%)';
-                silhouetteImage.style.filter = 'brightness(0)';
+                silhouetteImage.style.filter = 'brightness(0) saturate(0) contrast(1)';
             }
 
             if (answerDiv) {
@@ -1918,14 +1996,12 @@
         }
 
         function onGrowthComplete() {
-            console.log('Growth animation complete, waiting 1 second before color reveal');
+            console.log('Growth animation complete, starting color reveal immediately');
 
             silhouetteState.phase = 'waiting_transition';
 
-            // Wait 1 second, then start color reveal
-            silhouetteState.transitionTimeout = setTimeout(function() {
-                startColorReveal();
-            }, 1000);
+            // Start color reveal immediately
+            startColorReveal();
         }
 
         function startColorReveal() {
@@ -1937,7 +2013,10 @@
             silhouetteImage.classList.remove('growing', 'paused');
 
             // Ensure circle is fully grown before color reveal
-            silhouetteImage.style.clipPath = 'circle(75% at 50% 50%)';
+            silhouetteImage.style.clipPath = 'circle(65% at 50% 50%)';
+
+            // Set initial filter state for color reveal animation
+            silhouetteImage.style.filter = 'brightness(0) saturate(0) contrast(1)';
 
             // Start color reveal animation
             silhouetteImage.classList.add('revealing-color');
@@ -1949,13 +2028,13 @@
             // Notify server that color reveal phase has started (for scoring)
             socket.emit('silhouette_color_reveal_started');
 
-            // Set timeout for when color reveal completes (12.5 seconds)
+            // Set timeout for when color reveal completes (12 seconds)
             setTimeout(function() {
                 if (silhouetteState.phase === 'revealing_color') {
                     console.log('Color reveal complete');
                     silhouetteState.phase = 'complete';
                 }
-            }, 12500);
+            }, 12000);
         }
 
         function revealAnswer(answer) {
@@ -1967,6 +2046,216 @@
             console.log('Answer revealed:', answer);
         }
         // ===== END SILHOUETTE GAME FUNCTIONALITY =====
+
+        // ===== FONT GUESSER GAME FUNCTIONALITY =====
+        let fgCurrentChars = [];
+
+        function fgLoadFont(fontUrl) {
+            if (!fontUrl) return;
+
+            const styleId = 'fg-custom-font-style';
+            let styleEl = document.getElementById(styleId);
+
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = styleId;
+                document.head.appendChild(styleEl);
+            }
+
+            styleEl.textContent = `
+                @font-face {
+                    font-family: 'FGCustomFont';
+                    src: url('${fontUrl}') format('truetype');
+                }
+            `;
+
+            const display = document.getElementById('fg-letter-display');
+            if (display) {
+                display.style.fontFamily = "'FGCustomFont', 'Arial Black', sans-serif";
+            }
+
+            console.log('Font Guesser font loaded:', fontUrl);
+        }
+
+        function fgRenderDisplay() {
+            const display = document.getElementById('fg-letter-display');
+            if (!display) return;
+
+            display.innerHTML = '';
+
+            fgCurrentChars.forEach((char, i) => {
+                const slot = document.createElement('div');
+                slot.className = 'fg-letter-slot' + (char === ' ' ? ' space' : '');
+                slot.id = `fg-slot-${i}`;
+
+                const letter = document.createElement('span');
+                letter.className = 'fg-letter';
+                letter.id = `fg-letter-${i}`;
+                letter.innerText = char === ' ' ? '\u00A0' : char;
+
+                slot.appendChild(letter);
+                display.appendChild(slot);
+            });
+
+            console.log('Font Guesser display rendered:', fgCurrentChars.join(''));
+        }
+
+        // Counter for unique animation names
+        let fgAnimationCounter = 0;
+
+        function fgCreateArcAnimation(distance, goingUp) {
+            const animName = `fgArc${fgAnimationCounter++}`;
+            const arcHeight = goingUp ? -160 : 160;
+
+            // Generate many keyframe points for truly smooth arc
+            // Using sine curve for Y and ease-in-out for X (built into keyframes)
+            const steps = 20;
+            let keyframeRules = '';
+
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;  // 0 to 1
+                const percent = Math.round(t * 100);
+
+                // Ease-in-out for X movement (smooth acceleration/deceleration)
+                const easeT = t < 0.5
+                    ? 2 * t * t
+                    : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                const x = distance * easeT;
+
+                // Sine curve for Y (smooth arc)
+                const y = arcHeight * Math.sin(t * Math.PI);
+
+                keyframeRules += `
+                    ${percent}% {
+                        transform: translateX(calc(-50% + ${x.toFixed(2)}px)) translateY(${y.toFixed(2)}px);
+                    }`;
+            }
+
+            const keyframes = `@keyframes ${animName} {${keyframeRules}}`;
+
+            // Add keyframes to document
+            const styleSheet = document.createElement('style');
+            styleSheet.textContent = keyframes;
+            document.head.appendChild(styleSheet);
+
+            // Clean up style element after animation
+            setTimeout(() => styleSheet.remove(), 2000);
+
+            return animName;
+        }
+
+        function fgAnimateSwap(idxA, idxB) {
+            const letterA = document.getElementById(`fg-letter-${idxA}`);
+            const letterB = document.getElementById(`fg-letter-${idxB}`);
+            const slotA = document.getElementById(`fg-slot-${idxA}`);
+            const slotB = document.getElementById(`fg-slot-${idxB}`);
+
+            if (!letterA || !letterB) return;
+
+            const rectA = slotA.getBoundingClientRect();
+            const rectB = slotB.getBoundingClientRect();
+            const distance = rectB.left - rectA.left;
+
+            // Create arc animations - one goes up, one goes down
+            const animNameA = fgCreateArcAnimation(distance, true);  // A goes up arc
+            const animNameB = fgCreateArcAnimation(-distance, false); // B goes down arc
+
+            // Apply animations
+            letterA.classList.add('animating');
+            letterB.classList.add('animating');
+            letterA.style.animationName = animNameA;
+            letterB.style.animationName = animNameB;
+
+            // After animation completes, swap DOM positions
+            setTimeout(() => {
+                // Remove animation
+                letterA.classList.remove('animating');
+                letterB.classList.remove('animating');
+                letterA.style.animationName = '';
+                letterB.style.animationName = '';
+
+                // Reset transforms
+                letterA.style.transform = 'translateX(-50%)';
+                letterB.style.transform = 'translateX(-50%)';
+
+                // Move letters to new slots in DOM
+                slotA.appendChild(letterB);
+                slotB.appendChild(letterA);
+
+                // Update our local tracking
+                const temp = fgCurrentChars[idxA];
+                fgCurrentChars[idxA] = fgCurrentChars[idxB];
+                fgCurrentChars[idxB] = temp;
+
+                // Update IDs to match new positions
+                letterA.id = `fg-letter-${idxB}`;
+                letterB.id = `fg-letter-${idxA}`;
+            }, 1200);
+        }
+
+        function fgHighlightAllCorrect() {
+            document.querySelectorAll('.fg-letter').forEach(letter => {
+                letter.classList.add('correct');
+            });
+        }
+
+        function fgRevealAnswer(answer, chars) {
+            const answerDiv = document.getElementById('fg-answer');
+
+            if (chars) {
+                fgCurrentChars = chars;
+                fgRenderDisplay();
+            }
+
+            fgHighlightAllCorrect();
+
+            if (answerDiv) {
+                answerDiv.textContent = answer || '';
+                answerDiv.classList.remove('d-none');
+            }
+
+            console.log('Font Guesser answer revealed:', answer);
+        }
+
+        socket.on('fg_init', function(data) {
+            console.log('Font Guesser init:', data);
+
+            fgCurrentChars = data.chars || [];
+
+            if (data.font_url) {
+                fgLoadFont(data.font_url);
+            }
+
+            fgRenderDisplay();
+        });
+
+        socket.on('fg_started', function() {
+            console.log('Font Guesser animation started');
+        });
+
+        socket.on('fg_swap', function(data) {
+            console.log('Font Guesser swap:', data);
+            fgAnimateSwap(data.indexA, data.indexB);
+        });
+
+        socket.on('fg_paused', function() {
+            console.log('Font Guesser animation paused');
+        });
+
+        socket.on('fg_resumed', function() {
+            console.log('Font Guesser animation resumed');
+        });
+
+        socket.on('fg_complete', function(data) {
+            console.log('Font Guesser complete:', data);
+            fgHighlightAllCorrect();
+        });
+
+        socket.on('fg_reveal', function(data) {
+            console.log('Font Guesser reveal:', data);
+            fgRevealAnswer(data.answer, data.chars);
+        });
+        // ===== END FONT GUESSER GAME FUNCTIONALITY =====
     </script>
 </body>
 

@@ -187,11 +187,11 @@
 
         /* Color reveal animation - fade from black */
         .silhouette-image.revealing-color {
-            animation: color-reveal 25s linear forwards;
+            animation: color-reveal 25s cubic-bezier(0.05, 0.95, 0.15, 1) forwards;
         }
 
         @keyframes color-reveal {
-            from { filter: brightness(0); }
+            from { filter: brightness(0.8); }
             to { filter: brightness(1); }
         }
 
@@ -499,9 +499,12 @@
             transitionTimeout: null
         };
 
-        // Silhouette game socket listeners
+        // Silhouette and Font Guesser socket listeners
         socket.on('forward_to_buzzer', function(data) {
             console.log('Forward to buzzer event:', data);
+
+            // Hide all special containers first
+            document.getElementById('silhouette-container').classList.add('d-none');
 
             // Check if this is a silhouette question
             if (data.questionData && data.questionData.question_type === 'silhouette') {
@@ -520,7 +523,6 @@
             } else {
                 // Regular buzzer question - show buzzer status
                 document.getElementById('buzzer-status-container').classList.remove('d-none');
-                document.getElementById('silhouette-container').classList.add('d-none');
             }
         });
 
@@ -690,6 +692,193 @@
 
             console.log('Answer revealed:', answer);
         }
+
+        // ============================================================
+        // Font Guesser functionality
+        // ============================================================
+
+        let fgCurrentChars = [];
+        let fgFontLoaded = false;
+
+        function resetFontGuesserState() {
+            const display = document.getElementById('fg-letter-display');
+            const answerDiv = document.getElementById('fg-answer');
+
+            display.innerHTML = '';
+            answerDiv.classList.add('d-none');
+            answerDiv.textContent = '';
+            fgCurrentChars = [];
+
+            console.log('Font Guesser state reset');
+        }
+
+        function fgLoadFont(fontUrl) {
+            if (!fontUrl) return;
+
+            // Create a style element for the custom font
+            const styleId = 'fg-custom-font-style';
+            let styleEl = document.getElementById(styleId);
+
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = styleId;
+                document.head.appendChild(styleEl);
+            }
+
+            // Set the font-face rule
+            styleEl.textContent = `
+                @font-face {
+                    font-family: 'FGCustomFont';
+                    src: url('${fontUrl}') format('truetype');
+                }
+            `;
+
+            // Apply font to the display
+            document.getElementById('fg-letter-display').style.fontFamily = "'FGCustomFont', 'Arial Black', sans-serif";
+
+            console.log('Font Guesser font loaded:', fontUrl);
+        }
+
+        function fgRenderDisplay() {
+            const display = document.getElementById('fg-letter-display');
+            display.innerHTML = '';
+
+            fgCurrentChars.forEach((char, i) => {
+                const slot = document.createElement('div');
+                slot.className = 'fg-letter-slot' + (char === ' ' ? ' space' : '');
+                slot.id = `fg-slot-${i}`;
+
+                const letter = document.createElement('span');
+                letter.className = 'fg-letter';
+                letter.id = `fg-letter-${i}`;
+                letter.innerText = char === ' ' ? '\u00A0' : char;
+
+                slot.appendChild(letter);
+                display.appendChild(slot);
+            });
+
+            console.log('Font Guesser display rendered:', fgCurrentChars.join(''));
+        }
+
+        function fgAnimateSwap(idxA, idxB) {
+            const letterA = document.getElementById(`fg-letter-${idxA}`);
+            const letterB = document.getElementById(`fg-letter-${idxB}`);
+            const slotA = document.getElementById(`fg-slot-${idxA}`);
+            const slotB = document.getElementById(`fg-slot-${idxB}`);
+
+            if (!letterA || !letterB) return;
+
+            // Calculate horizontal distance
+            const rectA = slotA.getBoundingClientRect();
+            const rectB = slotB.getBoundingClientRect();
+            const distance = rectB.left - rectA.left;
+
+            // Animate: one goes up-arc, one goes down-arc
+            letterA.style.transform = `translateX(calc(-50% + ${distance}px)) translateY(-80px)`;
+            letterB.style.transform = `translateX(calc(-50% + ${-distance}px)) translateY(80px)`;
+
+            // After animation completes, reset positions
+            setTimeout(() => {
+                // Disable transitions temporarily
+                letterA.style.transition = 'none';
+                letterB.style.transition = 'none';
+                letterA.style.transform = 'translateX(-50%)';
+                letterB.style.transform = 'translateX(-50%)';
+
+                // Move letters to new slots in DOM
+                slotA.appendChild(letterB);
+                slotB.appendChild(letterA);
+
+                // Update our local tracking
+                const temp = fgCurrentChars[idxA];
+                fgCurrentChars[idxA] = fgCurrentChars[idxB];
+                fgCurrentChars[idxB] = temp;
+
+                // Update IDs to match new positions
+                letterA.id = `fg-letter-${idxB}`;
+                letterB.id = `fg-letter-${idxA}`;
+
+                // Re-enable transitions
+                requestAnimationFrame(() => {
+                    letterA.style.transition = '';
+                    letterB.style.transition = '';
+                });
+            }, 1500);
+        }
+
+        function fgHighlightAllCorrect() {
+            document.querySelectorAll('.fg-letter').forEach(letter => {
+                letter.classList.add('correct');
+            });
+        }
+
+        function fgRevealAnswer(answer, chars) {
+            const display = document.getElementById('fg-letter-display');
+            const answerDiv = document.getElementById('fg-answer');
+
+            // Update display to show final answer
+            if (chars) {
+                fgCurrentChars = chars;
+                fgRenderDisplay();
+            }
+
+            // Highlight all letters as correct
+            fgHighlightAllCorrect();
+
+            // Show answer text
+            answerDiv.textContent = answer || '';
+            answerDiv.classList.remove('d-none');
+
+            console.log('Font Guesser answer revealed:', answer);
+        }
+
+        // Font Guesser socket event listeners
+        socket.on('fg_init', function(data) {
+            console.log('Font Guesser init:', data);
+
+            fgCurrentChars = data.chars || [];
+
+            // Load the custom font
+            if (data.font_url) {
+                fgLoadFont(data.font_url);
+            }
+
+            // Render the initial display
+            fgRenderDisplay();
+        });
+
+        socket.on('fg_started', function() {
+            console.log('Font Guesser animation started');
+        });
+
+        socket.on('fg_swap', function(data) {
+            console.log('Font Guesser swap:', data);
+            fgAnimateSwap(data.indexA, data.indexB);
+        });
+
+        socket.on('fg_paused', function() {
+            console.log('Font Guesser animation paused');
+        });
+
+        socket.on('fg_resumed', function() {
+            console.log('Font Guesser animation resumed');
+        });
+
+        socket.on('fg_complete', function(data) {
+            console.log('Font Guesser complete:', data);
+            fgHighlightAllCorrect();
+        });
+
+        socket.on('fg_reveal', function(data) {
+            console.log('Font Guesser reveal:', data);
+            fgRevealAnswer(data.answer, data.chars);
+        });
+
+        // Auto-pause font guesser when player buzzes
+        socket.on('buzzer_buzzed', function(data) {
+            // The existing handler already handles buzzer_buzzed
+            // Font guesser pause is handled by the server
+        });
     </script>
 </body>
 </html>

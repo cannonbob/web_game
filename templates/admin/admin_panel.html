@@ -22,8 +22,10 @@
                 <p class="mb-0" id="current-question-text">-</p>
             </div>
             <div class="col-md-3">
-                <h6 class="text-muted mb-1">Answer</h6>
-                <p class="mb-0" id="current-question-answer">-</p>
+                <h6 class="text-muted mb-1">Answer <small class="text-muted" id="answer-count"></small></h6>
+                <select class="form-select form-select-sm" id="current-question-answer">
+                    <option>-</option>
+                </select>
             </div>
             <div class="col-md-2">
                 <h6 class="text-muted mb-1">Question Type</h6>
@@ -254,6 +256,26 @@
                                 </button>
                             </div>
 
+                            <!-- Font Guesser controls -->
+                            <div id="font-guesser-controls" class="d-none mb-3">
+                                <div class="alert alert-info mb-2">
+                                    <strong>Font Guesser Active</strong><br>
+                                    <span>Players can buzz in to guess the word</span>
+                                </div>
+                                <button class="btn btn-success w-100 mb-2" id="start-font-guesser">
+                                    <i class="fas fa-play me-1"></i>Start Animation
+                                </button>
+                                <button class="btn btn-warning w-100 mb-2" id="pause-font-guesser">
+                                    <i class="fas fa-pause me-1"></i>Pause
+                                </button>
+                                <button class="btn btn-info w-100 mb-2" id="resume-font-guesser">
+                                    <i class="fas fa-play me-1"></i>Resume
+                                </button>
+                                <button class="btn btn-danger w-100 mb-2" id="reveal-font-guesser">
+                                    <i class="fas fa-eye me-1"></i>Reveal Answer
+                                </button>
+                            </div>
+
                             <button class="btn btn-primary reset-buzzer">Reset Buzzer</button>
                             <button class="btn btn-success correct-answer">Correct Answer</button>
                             <button class="btn btn-warning wrong-answer">Wrong Answer</button>
@@ -277,6 +299,18 @@
             </div>
             <div class="card-body">
                 <p class="small text-muted">Control the overall game platform state. When started, the game board will be shown on the display.</p>
+
+                <!-- Session Selector -->
+                <div class="mb-3">
+                    <label for="session-selector" class="form-label fw-semibold">
+                        <i class="fas fa-folder-open me-1"></i>Game Session
+                    </label>
+                    <select class="form-select" id="session-selector">
+                        <option value="">-- Loading sessions --</option>
+                    </select>
+                    <div id="session-status" class="form-text"></div>
+                </div>
+
                 <div class="d-grid gap-2">
                     <!-- Platform Control Row -->
                     <div class="row">
@@ -394,6 +428,91 @@
 
     let currentGame = null;
     let currentQuestionData = null;
+    let platformActive = false;
+
+    // ===== SESSION SELECTOR FUNCTIONS =====
+    const sessionSelector = document.getElementById('session-selector');
+    const sessionStatus = document.getElementById('session-status');
+
+    function loadSessions() {
+        fetch('/api/admin/sessions')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    sessionSelector.innerHTML = '';
+                    if (data.sessions.length === 0) {
+                        sessionSelector.innerHTML = '<option value="">-- No sessions available --</option>';
+                        return;
+                    }
+
+                    data.sessions.forEach(session => {
+                        const option = document.createElement('option');
+                        option.value = session.id;
+                        option.textContent = session.name;
+                        if (session.id === data.active_session_id) {
+                            option.selected = true;
+                        }
+                        sessionSelector.appendChild(option);
+                    });
+
+                    platformActive = data.platform_active;
+                    updateSessionSelectorState();
+                } else {
+                    sessionSelector.innerHTML = '<option value="">-- Error loading sessions --</option>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading sessions:', error);
+                sessionSelector.innerHTML = '<option value="">-- Error loading sessions --</option>';
+            });
+    }
+
+    function updateSessionSelectorState() {
+        if (platformActive) {
+            sessionSelector.disabled = true;
+            sessionStatus.innerHTML = '<i class="fas fa-lock me-1"></i>Session locked while platform is running';
+            sessionStatus.className = 'form-text text-warning';
+        } else {
+            sessionSelector.disabled = false;
+            sessionStatus.innerHTML = '<i class="fas fa-info-circle me-1"></i>Select session before starting platform';
+            sessionStatus.className = 'form-text text-muted';
+        }
+    }
+
+    sessionSelector.addEventListener('change', function() {
+        if (platformActive) {
+            showNotification('Cannot change session while platform is active', 'warning');
+            loadSessions(); // Reset to current value
+            return;
+        }
+
+        const sessionId = this.value;
+        if (!sessionId) return;
+
+        fetch('/api/admin/select-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: parseInt(sessionId) })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(`Session "${data.session.name}" selected`, 'success');
+                } else {
+                    showNotification('Failed to select session: ' + data.error, 'danger');
+                    loadSessions(); // Reset to current value
+                }
+            })
+            .catch(error => {
+                console.error('Error selecting session:', error);
+                showNotification('Error selecting session', 'danger');
+                loadSessions();
+            });
+    });
+
+    // Load sessions on page load
+    loadSessions();
+    // ===== END SESSION SELECTOR FUNCTIONS =====
 
     // Test Socket.IO connection
     document.getElementById('test-socket').addEventListener('click', function () {
@@ -442,6 +561,10 @@
                     console.log('Platform started successfully using direct API');
                     showNotification('Game platform started!', 'success');
 
+                    // Update session selector state
+                    platformActive = true;
+                    updateSessionSelectorState();
+
                     // Reset input question state
                     window.currentInputQuestionId = null;
                     window.currentOrderingQuestionId = null;
@@ -482,6 +605,10 @@
                 if (data.success) {
                     console.log('Platform stopped successfully using direct API');
                     showNotification('Game platform stopped!', 'warning');
+
+                    // Update session selector state
+                    platformActive = false;
+                    updateSessionSelectorState();
 
                     // Update local game status display
                     updateGameStatus();
@@ -776,6 +903,41 @@
             console.log('Reveal Silhouette button clicked');
             socket.emit('silhouette_reveal');
         }
+        // Font Guesser controls
+        if (e.target.id === 'start-font-guesser') {
+            console.log('Start Font Guesser button clicked');
+            // Initialize font guesser with question data
+            if (window.currentFgQuestionData) {
+                const targetText = window.currentFgQuestionData.expected_answers?.[0]?.answer_raw || '';
+                let fontUrl = window.currentFgQuestionData.media_url || '';
+                // Ensure font URL has proper static path (avoid double /static/)
+                if (fontUrl && !fontUrl.startsWith('/') && !fontUrl.startsWith('http')) {
+                    if (fontUrl.startsWith('static/')) {
+                        fontUrl = '/' + fontUrl;
+                    } else {
+                        fontUrl = '/static/' + fontUrl;
+                    }
+                }
+                console.log('Font Guesser init:', { target: targetText, font_url: fontUrl });
+                socket.emit('fg_init', { target: targetText, font_url: fontUrl });
+                // Small delay to allow init, then start
+                setTimeout(() => {
+                    socket.emit('fg_start');
+                }, 100);
+            }
+        }
+        if (e.target.id === 'pause-font-guesser') {
+            console.log('Pause Font Guesser button clicked');
+            socket.emit('fg_pause');
+        }
+        if (e.target.id === 'resume-font-guesser') {
+            console.log('Resume Font Guesser button clicked');
+            socket.emit('fg_resume');
+        }
+        if (e.target.id === 'reveal-font-guesser') {
+            console.log('Reveal Font Guesser button clicked');
+            socket.emit('fg_reveal');
+        }
         if (e.target.id === 'reveal-answer' || e.target.closest('#reveal-answer')) {
             console.log('Reveal Answer button clicked');
             socket.emit('buzzer_reveal_answer');
@@ -1006,7 +1168,7 @@
             document.querySelector('.wrong-answer').classList.remove('d-none');
 
             // Check if this question type should use buzzer
-            const buzzerQuestionTypes = ['text', 'image', 'audio', 'video', 'silhouette'];
+            const buzzerQuestionTypes = ['text', 'image', 'audio', 'video', 'silhouette', 'fg'];
             const questionType = questionData ? questionData.question_type : 'text';
 
             if (buzzerQuestionTypes.includes(questionType)) {
@@ -1014,10 +1176,22 @@
                 if (questionType === 'silhouette') {
                     // Show silhouette-specific controls
                     document.getElementById('silhouette-controls').classList.remove('d-none');
+                    document.getElementById('font-guesser-controls').classList.add('d-none');
                     document.getElementById('buzzer-player-info').classList.add('d-none');
+                }
+                // Check if it's a font guesser question
+                else if (questionType === 'fg') {
+                    // Show font guesser-specific controls
+                    document.getElementById('font-guesser-controls').classList.remove('d-none');
+                    document.getElementById('silhouette-controls').classList.add('d-none');
+                    document.getElementById('buzzer-player-info').classList.add('d-none');
+
+                    // Store current question data for font guesser initialization
+                    window.currentFgQuestionData = questionData;
                 } else {
                     // Show regular buzzer controls for other buzzer question types
                     document.getElementById('silhouette-controls').classList.add('d-none');
+                    document.getElementById('font-guesser-controls').classList.add('d-none');
                 }
 
                 showGameControls('buzzer');
@@ -1181,11 +1355,12 @@
         });
         // Also hide buzzer controls when hiding all controls
         document.getElementById('buzzer-controls').classList.add('d-none');
-        // Hide input, Top 5, ordering, and silhouette question controls
+        // Hide input, Top 5, ordering, silhouette, and font guesser question controls
         document.getElementById('input-question-controls').classList.add('d-none');
         document.getElementById('top-5-controls').classList.add('d-none');
         document.getElementById('ordering-question-controls').classList.add('d-none');
         document.getElementById('silhouette-controls').classList.add('d-none');
+        document.getElementById('font-guesser-controls').classList.add('d-none');
     }
 
     // Refresh scores button
@@ -1354,12 +1529,46 @@
         const infoCard = document.getElementById('current-question-info');
         const questionText = document.getElementById('current-question-text');
         const questionAnswer = document.getElementById('current-question-answer');
+        const answerCount = document.getElementById('answer-count');
         const questionType = document.getElementById('current-question-type');
         const showQuestionBtn = document.getElementById('show-question-btn');
 
-        // Set question and answer
+        // Set question text
         questionText.textContent = question || '-';
-        questionAnswer.textContent = answer || '-';
+
+        // Populate answer dropdown
+        questionAnswer.innerHTML = '';
+
+        // Collect all answers
+        let answers = [];
+
+        // Add expected answers if available
+        if (questionData && questionData.expected_answers && questionData.expected_answers.length > 0) {
+            questionData.expected_answers.forEach(ans => {
+                answers.push(ans.answer_raw);
+            });
+        }
+
+        // If no expected answers, use the single answer field
+        if (answers.length === 0 && answer) {
+            answers.push(answer);
+        }
+
+        // Populate dropdown
+        if (answers.length > 0) {
+            answers.forEach((ans, index) => {
+                const option = document.createElement('option');
+                option.value = ans;
+                option.textContent = ans;
+                questionAnswer.appendChild(option);
+            });
+            answerCount.textContent = answers.length > 1 ? `(${answers.length})` : '';
+        } else {
+            const option = document.createElement('option');
+            option.textContent = '-';
+            questionAnswer.appendChild(option);
+            answerCount.textContent = '';
+        }
 
         // Determine question type
         const type = determineQuestionType(questionData);
@@ -1397,6 +1606,11 @@
         // Check for This or That questions
         if (questionData.question_type === 'tt') {
             return 'This or That';
+        }
+
+        // Check for Font Guesser questions
+        if (questionData.question_type === 'fg') {
+            return 'Font Guesser';
         }
 
         // Check for input questions (including ordering games)

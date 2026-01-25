@@ -4,20 +4,25 @@ import json
 
 class GameState(db.Model):
     __tablename__ = 'game_state'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     is_active = db.Column(db.Boolean, default=False)
     active_game = db.Column(db.String(50), nullable=True)
+    active_session_id = db.Column(db.Integer, db.ForeignKey('game_sessions.id'), nullable=True)
     game_data = db.Column(db.Text, nullable=True)  # JSON data for game state
-    
+
+    # Relationship to SessionSetup
+    active_session = db.relationship('SessionSetup', foreign_keys=[active_session_id])
+
     def to_dict(self):
         return {
             'id': self.id,
             'is_active': self.is_active,
             'active_game': self.active_game,
+            'active_session_id': self.active_session_id,
             'game_data': json.loads(self.game_data) if self.game_data else {}
         }
-    
+
     def set_game_data(self, data):
         self.game_data = json.dumps(data)
 

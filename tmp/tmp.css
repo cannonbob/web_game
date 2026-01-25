@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Bungee+Inline&display=swap');
+
+body {
+  background: #050505;
+  color: #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+  overflow: hidden;
+}
+
+.font-jurassic {
+  font-family: 'Bungee Inline', cursive;
+  font-size: 5rem;
+  letter-spacing: 5px;
+  color: #ffcc00;
+  display: flex; /* Keeps letters in a row */
+}
+
+/* Each letter container keeps its physical space reserved */
+.letter-slot {
+  width: 1ch; 
+  display: inline-block;
+  text-align: center;
+  position: relative;
+}
+
+.letter-active {
+  display: inline-block;
+  transition: transform 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+#status {
+  text-align: center;
+  font-family: monospace;
+  color: #555;
+  margin-top: 20px;
+}

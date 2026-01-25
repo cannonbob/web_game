@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Letter Swap Preview</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        @font-face {
+            font-family: 'GameOfSquids';
+            src: url('/font/GameOfSquids-1GMVL.ttf') format('truetype');
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .game-container {
+            text-align: center;
+        }
+
+        #letter-display {
+            font-family: 'GameOfSquids', 'Bungee Inline', cursive;
+            font-size: 5rem;
+            letter-spacing: 8px;
+            color: #ff2d6a;
+            display: flex;
+            justify-content: center;
+            min-height: 120px;
+            text-shadow: 0 0 20px rgba(255, 45, 106, 0.5);
+        }
+
+        .letter-slot {
+            width: 1.2ch;
+            display: inline-block;
+            text-align: center;
+            position: relative;
+            height: 1.2em;
+        }
+
+        .letter-slot.space {
+            width: 0.6ch;
+        }
+
+        .letter {
+            display: inline-block;
+            position: absolute;
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+            transition: transform 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+
+        .letter.correct {
+            color: #00ff88;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        #status {
+            font-family: monospace;
+            color: #666;
+            margin-top: 40px;
+            font-size: 1rem;
+        }
+
+        .controls {
+            margin-top: 40px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            background: linear-gradient(135deg, #ff2d6a, #c9184a);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 45, 106, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .input-group {
+            margin-top: 30px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        input[type="text"] {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 12px 16px;
+            font-size: 1rem;
+            border-radius: 8px;
+            width: 300px;
+        }
+
+        input[type="text"]::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #ff2d6a;
+            box-shadow: 0 0 10px rgba(255, 45, 106, 0.3);
+        }
+
+        .info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            font-size: 0.8rem;
+            color: #444;
+        }
+
+        .info code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div id="letter-display"></div>
+        <p id="status">Enter a word and click Start</p>
+
+        <div class="input-group">
+            <input type="text" id="target-word" placeholder="Enter target word..." value="SQUID GAME">
+        </div>
+
+        <div class="controls">
+            <button onclick="startGame()">Start</button>
+            <button onclick="manualSwap()">Manual Swap</button>
+            <button onclick="stopGame()">Stop</button>
+        </div>
+    </div>
+
+    <div class="info">
+        Game logic runs in <code>Python</code> | Animation runs in <code>JavaScript</code>
+    </div>
+
+    <script>
+        // Connect to Python server
+        const socket = io();
+
+        const display = document.getElementById('letter-display');
+        const status = document.getElementById('status');
+        let currentChars = [];
+        let targetWord = '';
+
+        // Listen for initialization from server
+        socket.on('init_display', (data) => {
+            console.log('Received init_display:', data);
+            currentChars = data.chars;
+            renderDisplay();
+            status.textContent = 'Swapping letters...';
+        });
+
+        // Listen for swap instructions from server
+        socket.on('swap', (data) => {
+            console.log('Received swap:', data);
+            animateSwap(data.indexA, data.indexB);
+        });
+
+        // Listen for game completion
+        socket.on('game_complete', (data) => {
+            console.log('Game complete:', data);
+            status.textContent = data.message;
+            highlightAllCorrect();
+        });
+
+        function renderDisplay() {
+            display.innerHTML = '';
+
+            currentChars.forEach((char, i) => {
+                const slot = document.createElement('div');
+                slot.className = 'letter-slot' + (char === ' ' ? ' space' : '');
+                slot.id = `slot-${i}`;
+
+                const letter = document.createElement('span');
+                letter.className = 'letter';
+                letter.id = `letter-${i}`;
+                letter.innerText = char === ' ' ? '\u00A0' : char;
+
+                slot.appendChild(letter);
+                display.appendChild(slot);
+            });
+        }
+
+        function animateSwap(idxA, idxB) {
+            const letterA = document.getElementById(`letter-${idxA}`);
+            const letterB = document.getElementById(`letter-${idxB}`);
+            const slotA = document.getElementById(`slot-${idxA}`);
+            const slotB = document.getElementById(`slot-${idxB}`);
+
+            if (!letterA || !letterB) return;
+
+            // Calculate horizontal distance
+            const rectA = slotA.getBoundingClientRect();
+            const rectB = slotB.getBoundingClientRect();
+            const distance = rectB.left - rectA.left;
+
+            // Animate: one goes up-arc, one goes down-arc
+            letterA.style.transform = `translateX(calc(-50% + ${distance}px)) translateY(-80px)`;
+            letterB.style.transform = `translateX(calc(-50% + ${-distance}px)) translateY(80px)`;
+
+            // After animation completes, reset positions
+            setTimeout(() => {
+                // Disable transitions temporarily
+                letterA.style.transition = 'none';
+                letterB.style.transition = 'none';
+                letterA.style.transform = 'translateX(-50%)';
+                letterB.style.transform = 'translateX(-50%)';
+
+                // Move letters to new slots in DOM
+                slotA.appendChild(letterB);
+                slotB.appendChild(letterA);
+
+                // Update our local tracking
+                const temp = currentChars[idxA];
+                currentChars[idxA] = currentChars[idxB];
+                currentChars[idxB] = temp;
+
+                // Update IDs to match new positions
+                letterA.id = `letter-${idxB}`;
+                letterB.id = `letter-${idxA}`;
+
+                // Re-enable transitions
+                requestAnimationFrame(() => {
+                    letterA.style.transition = '';
+                    letterB.style.transition = '';
+                });
+            }, 1500);
+        }
+
+        function highlightAllCorrect() {
+            document.querySelectorAll('.letter').forEach(letter => {
+                letter.classList.add('correct');
+            });
+        }
+
+        function startGame() {
+            const word = document.getElementById('target-word').value.trim();
+            if (!word) return;
+            targetWord = word.toUpperCase();
+            socket.emit('start_game', { target: targetWord });
+        }
+
+        function manualSwap() {
+            socket.emit('manual_swap');
+        }
+
+        function stopGame() {
+            socket.emit('stop_game');
+            status.textContent = 'Game stopped';
+        }
+
+        // Start with Enter key
+        document.getElementById('target-word').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') startGame();
+        });
+    </script>
+</body>
+</html>

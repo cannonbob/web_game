@@ -110,7 +110,7 @@ socket.on('question_selected', function(data) {
     // Only handle if we're on buzzer page and it's a buzzer-type question
     if (data.questionData) {
         const questionType = data.questionData.question_type;
-        if (['text', 'image', 'audio', 'video', 'silhouette'].includes(questionType)) {
+        if (['text', 'image', 'audio', 'video', 'silhouette', 'fg'].includes(questionType)) {
             handleBuzzerQuestion(data);
         }
     }

@@ -59,7 +59,22 @@ total_items = 0  # Total number of items for the current question
 silhouette_phase = 'idle'  # Tracks current phase: 'idle', 'growing', 'revealing_color', 'complete'
 
 # Session configuration
-ACTIVE_SESSION_NAME = "playtest"
+ACTIVE_SESSION_NAME = "playtest"  # Fallback default session name
+
+
+def get_active_session():
+    """Get the currently active session from database or fallback to ACTIVE_SESSION_NAME"""
+    game_state = GameState.query.first()
+    if game_state and game_state.active_session_id:
+        session = SessionSetup.query.get(game_state.active_session_id)
+        if session:
+            return session
+    # Fallback to ACTIVE_SESSION_NAME or first available session
+    session = SessionSetup.query.filter_by(name=ACTIVE_SESSION_NAME).first()
+    if not session:
+        session = SessionSetup.query.first()
+    return session
+
 
 # Spotify configuration
 SPOTIFY_CLIENT_ID = os.getenv('CLIENT_ID')
@@ -476,10 +491,7 @@ def api_current_session():
     """API endpoint to get current game board session data"""
     try:
         # Get the configured active session
-        session = SessionSetup.query.filter_by(name=ACTIVE_SESSION_NAME).first()
-        # Fallback to first session if configured session doesn't exist
-        if not session:
-            session = SessionSetup.query.first()
+        session = get_active_session()
         if not session:
             return jsonify({'error': 'No session found'}), 404
 
@@ -857,6 +869,96 @@ def api_platform_state():
     except Exception as e:
         print(f"Error getting platform state: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+# Session Management API endpoints
+@app.route('/api/admin/sessions')
+@admin_required
+def api_get_sessions():
+    """Get all available game sessions"""
+    try:
+        sessions = SessionSetup.query.all()
+        game_state = GameState.query.first()
+        active_session_id = game_state.active_session_id if game_state else None
+
+        return jsonify({
+            'success': True,
+            'sessions': [{'id': s.id, 'name': s.name, 'created_at': str(s.created_at)} for s in sessions],
+            'active_session_id': active_session_id,
+            'platform_active': game_state.is_active if game_state else False
+        })
+    except Exception as e:
+        print(f"Error getting sessions: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/select-session', methods=['POST'])
+@admin_required
+def api_select_session():
+    """Select a session to use (only when platform is stopped)"""
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+
+        if not session_id:
+            return jsonify({'success': False, 'error': 'No session_id provided'}), 400
+
+        # Validate session exists
+        session_setup = SessionSetup.query.get(session_id)
+        if not session_setup:
+            return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+        # Check if platform is active
+        game_state = GameState.query.first()
+        if game_state and game_state.is_active:
+            return jsonify({'success': False, 'error': 'Cannot change session while platform is active'}), 400
+
+        # Update active session
+        if not game_state:
+            game_state = GameState(id=1, is_active=False, active_session_id=session_id)
+            db.session.add(game_state)
+        else:
+            game_state.active_session_id = session_id
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Session "{session_setup.name}" selected',
+            'session': {'id': session_setup.id, 'name': session_setup.name}
+        })
+    except Exception as e:
+        print(f"Error selecting session: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/active-session')
+@admin_required
+def api_get_active_session():
+    """Get the currently active session"""
+    try:
+        game_state = GameState.query.first()
+        if not game_state or not game_state.active_session_id:
+            # Fall back to first session or the one matching ACTIVE_SESSION_NAME
+            session = SessionSetup.query.filter_by(name=ACTIVE_SESSION_NAME).first()
+            if not session:
+                session = SessionSetup.query.first()
+            return jsonify({
+                'success': True,
+                'session': {'id': session.id, 'name': session.name} if session else None,
+                'platform_active': game_state.is_active if game_state else False
+            })
+
+        session = SessionSetup.query.get(game_state.active_session_id)
+        return jsonify({
+            'success': True,
+            'session': {'id': session.id, 'name': session.name} if session else None,
+            'platform_active': game_state.is_active
+        })
+    except Exception as e:
+        print(f"Error getting active session: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 # Spotify API endpoints
 @app.route('/api/spotify/auth_url')
@@ -1311,11 +1413,8 @@ def handle_select_question(data):
         category_position = int(data['category'])
         question_value = int(data['value'])
 
-        # Get the configured active session (same logic as API)
-        session_setup = SessionSetup.query.filter_by(name=ACTIVE_SESSION_NAME).first()
-        # Fallback to first session if configured session doesn't exist
-        if not session_setup:
-            session_setup = SessionSetup.query.first()
+        # Get the configured active session
+        session_setup = get_active_session()
         if not session_setup:
             emit('error', {'message': 'No session found'})
             return
@@ -1652,7 +1751,7 @@ def handle_select_question(data):
         else:
             # Check if this question type should use buzzer
             question_type = session_question.question.question_type
-            buzzer_question_types = ['text', 'image', 'audio', 'video', 'silhouette']
+            buzzer_question_types = ['text', 'image', 'audio', 'video', 'silhouette', 'fg']
 
             # Emit question_selected for game board display
             emit('question_selected', {
@@ -2184,11 +2283,8 @@ def handle_reveal_top_5(data):
 def handle_get_board_state():
     """Send current board state to client"""
     try:
-        # Get the configured active session (same logic as API)
-        session_setup = SessionSetup.query.filter_by(name=ACTIVE_SESSION_NAME).first()
-        # Fallback to first session if configured session doesn't exist
-        if not session_setup:
-            session_setup = SessionSetup.query.first()
+        # Get the configured active session
+        session_setup = get_active_session()
         if not session_setup:
             emit('game_board_state', {'questions': {}})
             return
@@ -2292,6 +2388,13 @@ def handle_buzzer_buzz():
         if current_question_data and current_question_data.get('question_type') == 'silhouette':
             print("Auto-pausing silhouette growth due to buzz")
             emit('silhouette_pause_growth', broadcast=True)
+
+        # If this is a font guesser question, auto-pause the animation
+        if current_question_data and current_question_data.get('question_type') == 'fg':
+            global fg_is_running
+            print("Auto-pausing font guesser animation due to buzz")
+            fg_is_running = False
+            emit('fg_paused', broadcast=True)
 
 @socketio.on('buzzer_reset')
 def handle_buzzer_reset():
@@ -2451,6 +2554,177 @@ def handle_silhouette_reveal():
             'answer': answer_text
         }, broadcast=True)
 
+# Font Guesser state
+fg_target = ''
+fg_current_chars = []
+fg_space_indices = []
+fg_is_running = False
+fg_swap_interval = 2.5
+
+def fg_get_random_wrong_index():
+    """Find a random index where current char doesn't match target (excluding spaces)"""
+    global fg_current_chars, fg_target, fg_space_indices
+    wrong_indices = [
+        i for i, c in enumerate(fg_current_chars)
+        if i not in fg_space_indices and c != fg_target[i]
+    ]
+    if not wrong_indices:
+        return None
+    return random.choice(wrong_indices)
+
+def fg_find_char_position(char, exclude_index):
+    """Find where a specific character is currently located, excluding a given index.
+    Only returns positions where the character is MISPLACED (not already correct),
+    to avoid moving letters that are already in their final position."""
+    global fg_current_chars, fg_space_indices, fg_target
+    for i, c in enumerate(fg_current_chars):
+        if i != exclude_index and i not in fg_space_indices and c == char:
+            # Only return this position if the character here is misplaced
+            # (i.e., it doesn't match what should be at this position)
+            if c != fg_target[i]:
+                return i
+    return None
+
+def fg_perform_swap():
+    """Pick a random wrong position and swap with the correct letter's current location"""
+    global fg_current_chars, fg_target, fg_is_running
+
+    idx_a = fg_get_random_wrong_index()
+
+    if idx_a is None:
+        socketio.emit('fg_complete', {'message': 'Word revealed!'})
+        fg_is_running = False
+        return False
+
+    needed_char = fg_target[idx_a]
+    idx_b = fg_find_char_position(needed_char, idx_a)
+
+    if idx_b is None:
+        fg_is_running = False
+        return False
+
+    fg_current_chars[idx_a], fg_current_chars[idx_b] = fg_current_chars[idx_b], fg_current_chars[idx_a]
+
+    socketio.emit('fg_swap', {
+        'indexA': idx_a,
+        'indexB': idx_b
+    })
+
+    print(f"Font Guesser swap: {idx_a} <-> {idx_b}, current: {''.join(fg_current_chars)}")
+    return True
+
+def fg_game_loop():
+    """Background task that triggers swaps at intervals"""
+    global fg_is_running, fg_swap_interval
+    while fg_is_running:
+        socketio.sleep(fg_swap_interval)
+        if fg_is_running:
+            if not fg_perform_swap():
+                break
+
+@socketio.on('fg_init')
+def handle_fg_init(data):
+    """Initialize font guesser with target text and font URL"""
+    global fg_target, fg_current_chars, fg_space_indices, fg_is_running
+
+    if 'username' not in session or session['username'] != 'admin':
+        return
+
+    target = data.get('target', '').upper()
+    font_url = data.get('font_url', '')
+
+    if not target:
+        print("Font Guesser: No target text provided")
+        return
+
+    fg_target = target
+    fg_is_running = False
+
+    fg_space_indices = [i for i, c in enumerate(fg_target) if c == ' ']
+
+    non_space_chars = [c for c in fg_target if c != ' ']
+    random.shuffle(non_space_chars)
+
+    fg_current_chars = []
+    non_space_idx = 0
+    for i, c in enumerate(fg_target):
+        if c == ' ':
+            fg_current_chars.append(' ')
+        else:
+            fg_current_chars.append(non_space_chars[non_space_idx])
+            non_space_idx += 1
+
+    emit('fg_init', {
+        'chars': fg_current_chars,
+        'font_url': font_url,
+        'length': len(fg_target)
+    }, broadcast=True)
+
+    print(f"Font Guesser initialized: target='{fg_target}', shuffled={''.join(fg_current_chars)}")
+
+@socketio.on('fg_start')
+def handle_fg_start(data=None):
+    """Start the font guesser swap animation"""
+    global fg_is_running, fg_target
+
+    if 'username' not in session or session['username'] != 'admin':
+        return
+
+    if not fg_target:
+        print("Font Guesser: No target set, cannot start")
+        return
+
+    fg_is_running = True
+    emit('fg_started', {}, broadcast=True)
+    socketio.start_background_task(fg_game_loop)
+    print("Font Guesser animation started")
+
+@socketio.on('fg_pause')
+def handle_fg_pause(data=None):
+    """Pause the font guesser animation"""
+    global fg_is_running
+
+    if 'username' not in session or session['username'] != 'admin':
+        return
+
+    fg_is_running = False
+    emit('fg_paused', {}, broadcast=True)
+    print("Font Guesser animation paused")
+
+@socketio.on('fg_resume')
+def handle_fg_resume(data=None):
+    """Resume the font guesser animation"""
+    global fg_is_running, fg_target
+
+    if 'username' not in session or session['username'] != 'admin':
+        return
+
+    if not fg_target:
+        return
+
+    fg_is_running = True
+    emit('fg_resumed', {}, broadcast=True)
+    socketio.start_background_task(fg_game_loop)
+    print("Font Guesser animation resumed")
+
+@socketio.on('fg_reveal')
+def handle_fg_reveal(data=None):
+    """Reveal the final answer"""
+    global fg_is_running, fg_target, fg_current_chars
+
+    if 'username' not in session or session['username'] != 'admin':
+        return
+
+    fg_is_running = False
+    fg_current_chars = list(fg_target)
+
+    emit('fg_reveal', {
+        'answer': fg_target,
+        'chars': fg_current_chars
+    }, broadcast=True)
+
+    print(f"Font Guesser answer revealed: {fg_target}")
+
 @socketio.on('buzzer_reveal_answer')
 def handle_buzzer_reveal_answer():
     """Handle admin revealing the answer for any buzzer question"""
@@ -2483,10 +2757,16 @@ def handle_back_to_game_board():
 
         # Clear current question data to prevent reconnection loop
         global current_question_data, current_item_index, total_items, silhouette_phase
+        global fg_target, fg_current_chars, fg_space_indices, fg_is_running
         current_question_data = None
         current_item_index = 0
         total_items = 0
         silhouette_phase = 'idle'
+        # Reset font guesser state
+        fg_target = ''
+        fg_current_chars = []
+        fg_space_indices = []
+        fg_is_running = False
         print("Cleared current question data")
 
         # End the current game if one is active
