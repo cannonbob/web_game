@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Game Board - Game Platform</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" href="data:,">
     <style>
         body {
             background-color: #2c3e50;
@@ -30,8 +31,8 @@
         .game-board {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            gap: 15px;
-            margin: 0 auto;
+            gap: 23px;
+            margin: 2rem auto 0;
             max-width: 1200px;
         }
 
@@ -41,12 +42,15 @@
             border-radius: 10px;
             font-weight: bold;
             font-size: 1.3rem;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            background-color: #3498db;
             min-height: 100px;
             display: flex;
             align-items: center;
             justify-content: center;
+            background: rgba(255, 255, 255, .12);
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: rgba(255, 255, 255, .9);
+            border-bottom: 3px solid;
         }
 
         .question {
@@ -55,75 +59,83 @@
             border-radius: 10px;
             font-weight: bold;
             font-size: 2rem;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s;
             cursor: pointer;
             min-height: 100px;
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
+            overflow: hidden;
+            transform-style: preserve-3d;
+            transition: transform 0.35s ease, box-shadow 0.35s ease, filter 0.35s ease;
+        }
+
+        /* Glossy sheen overlay */
+        .question::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            background: linear-gradient(135deg, rgba(255,255,255,.22) 0%, transparent 50%, rgba(0,0,0,.12) 100%);
+            pointer-events: none;
         }
 
         .question:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+            transform: rotateX(-5deg) rotateY(3deg) translateY(-4px);
+            filter: brightness(1.08);
         }
 
         .question.taken {
-            opacity: 0.5;
+            opacity: 0.3;
             cursor: default;
+            filter: grayscale(.4);
         }
 
         .question.taken:hover {
             transform: none;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            filter: grayscale(.4);
         }
 
-        /* Category colors */
-        .category-1,
+        /* Category colors — underline accent */
+        .category-1 { border-bottom-color: #C8526B; }
+        .category-2 { border-bottom-color: #4091A3; }
+        .category-3 { border-bottom-color: #5CA665; }
+        .category-4 { border-bottom-color: #CC7030; }
+        .category-5 { border-bottom-color: #8A60A0; }
+
+        /* Question colors — 3D gradient tiles */
         .question-1 {
-            background-color: #3498db;
+            background: linear-gradient(135deg, #C8526B, #BF4A63);
+            box-shadow: 0 6px 0 #902038, 0 8px 16px rgba(0,0,0,.3);
         }
-
-        .category-2,
         .question-2 {
-            background-color: #2ecc71;
+            background: linear-gradient(135deg, #4091A3, #38899B);
+            box-shadow: 0 6px 0 #106173, 0 8px 16px rgba(0,0,0,.3);
         }
-
-        .category-3,
         .question-3 {
-            background-color: #e74c3c;
+            background: linear-gradient(135deg, #5CA665, #549E5D);
+            box-shadow: 0 6px 0 #3C7645, 0 8px 16px rgba(0,0,0,.3);
         }
-
-        .category-4,
         .question-4 {
-            background-color: #f39c12;
+            background: linear-gradient(135deg, #CC7030, #C46828);
+            box-shadow: 0 6px 0 #9C4010, 0 8px 16px rgba(0,0,0,.3);
         }
-
-        .category-5,
         .question-5 {
-            background-color: #9b59b6;
+            background: linear-gradient(135deg, #8A60A0, #825898);
+            box-shadow: 0 6px 0 #5A3070, 0 8px 16px rgba(0,0,0,.3);
         }
 
-        .question-1.taken {
-            background-color: #2980b9;
-        }
+        .question-1:hover { box-shadow: 0 10px 0 #902038, 0 14px 28px rgba(0,0,0,.4); }
+        .question-2:hover { box-shadow: 0 10px 0 #106173, 0 14px 28px rgba(0,0,0,.4); }
+        .question-3:hover { box-shadow: 0 10px 0 #3C7645, 0 14px 28px rgba(0,0,0,.4); }
+        .question-4:hover { box-shadow: 0 10px 0 #9C4010, 0 14px 28px rgba(0,0,0,.4); }
+        .question-5:hover { box-shadow: 0 10px 0 #5A3070, 0 14px 28px rgba(0,0,0,.4); }
 
-        .question-2.taken {
-            background-color: #27ae60;
-        }
-
-        .question-3.taken {
-            background-color: #c0392b;
-        }
-
-        .question-4.taken {
-            background-color: #d35400;
-        }
-
-        .question-5.taken {
-            background-color: #8e44ad;
-        }
+        .question-1.taken { box-shadow: 0 2px 0 #902038; }
+        .question-2.taken { box-shadow: 0 2px 0 #106173; }
+        .question-3.taken { box-shadow: 0 2px 0 #3C7645; }
+        .question-4.taken { box-shadow: 0 2px 0 #9C4010; }
+        .question-5.taken { box-shadow: 0 2px 0 #5A3070; }
 
 
         .question-content {

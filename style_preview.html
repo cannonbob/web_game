@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Board - Custom Palette Preview</title>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #2c3e50;
+            color: #fff;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        h2 { text-align: center; margin-bottom: .4rem; font-size: 1.8rem; }
+        p.subtitle { text-align: center; margin-bottom: .3rem; color: rgba(255,255,255,.55); font-size: .95rem; }
+
+        .swatches { display: flex; justify-content: center; gap: 10px; margin-bottom: 2rem; }
+        .swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 23px;
+            max-width: 1200px;
+            margin: 2rem auto 0;
+        }
+
+        /* ── Categories ── */
+        .cat {
+            text-align: center;
+            padding: 1.5rem 1rem;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 1.3rem;
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, .12);
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: rgba(255, 255, 255, .9);
+            border-bottom: 3px solid;
+        }
+
+        .cat.c1 { border-bottom-color: #C8526B; }
+        .cat.c2 { border-bottom-color: #4091A3; }
+        .cat.c3 { border-bottom-color: #5CA665; }
+        .cat.c4 { border-bottom-color: #CC7030; }
+        .cat.c5 { border-bottom-color: #8A60A0; }
+
+        /* ── Questions ── */
+        .q {
+            text-align: center;
+            padding: 2rem 1rem;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 2rem;
+            cursor: pointer;
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            transform-style: preserve-3d;
+            transition: transform 0.35s ease, box-shadow 0.35s ease, filter 0.35s ease;
+        }
+
+        .q::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            background: linear-gradient(135deg, rgba(255,255,255,.22) 0%, transparent 50%, rgba(0,0,0,.12) 100%);
+            pointer-events: none;
+        }
+
+        .q:hover { transform: rotateX(-5deg) rotateY(3deg) translateY(-4px); filter: brightness(1.08); }
+        .q.taken { opacity: 0.3; cursor: default; filter: grayscale(.4); }
+        .q.taken:hover { transform: none; filter: grayscale(.4); }
+
+        .q { color: #ffffff; }
+
+        /* #DA627D — Rose */
+        .q.c1 {
+            background: linear-gradient(135deg, #C8526B, #BF4A63);
+            box-shadow: 0 6px 0 #902038, 0 8px 16px rgba(0,0,0,.3);
+        }
+        .q.c1:hover { box-shadow: 0 10px 0 #902038, 0 14px 28px rgba(0,0,0,.4); }
+        .q.c1.taken { box-shadow: 0 2px 0 #902038; }
+
+        /* #47A8BD — Teal */
+        .q.c2 {
+            background: linear-gradient(135deg, #4091A3, #38899B);
+            box-shadow: 0 6px 0 #106173, 0 8px 16px rgba(0,0,0,.3);
+        }
+        .q.c2:hover { box-shadow: 0 10px 0 #106173, 0 14px 28px rgba(0,0,0,.4); }
+        .q.c2.taken { box-shadow: 0 2px 0 #106173; }
+
+        /* #C7F0BD — Mint */
+        .q.c3 {
+            background: linear-gradient(135deg, #5CA665, #549E5D);
+            box-shadow: 0 6px 0 #3C7645, 0 8px 16px rgba(0,0,0,.3);
+        }
+        .q.c3:hover { box-shadow: 0 10px 0 #3C7645, 0 14px 28px rgba(0,0,0,.4); }
+        .q.c3.taken { box-shadow: 0 2px 0 #3C7645; }
+
+        /* #FFAD69 — Tangerine */
+        .q.c4 {
+            background: linear-gradient(135deg, #CC7030, #C46828);
+            box-shadow: 0 6px 0 #9C4010, 0 8px 16px rgba(0,0,0,.3);
+        }
+        .q.c4:hover { box-shadow: 0 10px 0 #9C4010, 0 14px 28px rgba(0,0,0,.4); }
+        .q.c4.taken { box-shadow: 0 2px 0 #9C4010; }
+
+        /* #E5D4ED — Lavender */
+        .q.c5 {
+            background: linear-gradient(135deg, #8A60A0, #825898);
+            box-shadow: 0 6px 0 #5A3070, 0 8px 16px rgba(0,0,0,.3);
+        }
+        .q.c5:hover { box-shadow: 0 10px 0 #5A3070, 0 14px 28px rgba(0,0,0,.4); }
+        .q.c5.taken { box-shadow: 0 2px 0 #5A3070; }
+    </style>
+</head>
+
+<body>
+
+    <h2>Custom Palette</h2>
+    <p class="subtitle">Rose · Teal · Mint · Tangerine · Lavender</p>
+    <div class="swatches">
+        <div class="swatch" style="background:#C8526B"></div>
+        <div class="swatch" style="background:#4091A3"></div>
+        <div class="swatch" style="background:#5CA665"></div>
+        <div class="swatch" style="background:#CC7030"></div>
+        <div class="swatch" style="background:#8A60A0"></div>
+    </div>
+
+    <div class="board">
+        <div class="cat c1">Science</div>
+        <div class="cat c2">History</div>
+        <div class="cat c3">Sports</div>
+        <div class="cat c4">Music</div>
+        <div class="cat c5">Movies</div>
+
+        <div class="q c1">100</div>
+        <div class="q c2">100</div>
+        <div class="q c3">100</div>
+        <div class="q c4">100</div>
+        <div class="q c5">100</div>
+
+        <div class="q c1">200</div>
+        <div class="q c2">200</div>
+        <div class="q c3 taken">200</div>
+        <div class="q c4">200</div>
+        <div class="q c5">200</div>
+
+        <div class="q c1">300</div>
+        <div class="q c2 taken">300</div>
+        <div class="q c3">300</div>
+        <div class="q c4">300</div>
+        <div class="q c5">300</div>
+
+        <div class="q c1">400</div>
+        <div class="q c2">400</div>
+        <div class="q c3">400</div>
+        <div class="q c4 taken">400</div>
+        <div class="q c5">400</div>
+    </div>
+
+</body>
+
+</html>
