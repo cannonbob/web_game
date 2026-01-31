@@ -49,7 +49,6 @@ game_manager.setup_utility_handlers('price_guesser')
 
 # Global variable to track who buzzed for scoring
 current_buzzed_player = None
-
 # Multi-item question tracking
 current_question_data = None  # Stores the full question data for multi-item questions
 current_item_index = 0  # Tracks the current item being displayed
@@ -826,25 +825,35 @@ def api_start_platform():
 @admin_required
 def api_stop_platform():
     print("\n\n====== STOP PLATFORM DIRECT API CALLED ======")
-    
+
     try:
+        # Clear current question data (same as socket handler does)
+        global current_question_data, current_item_index, total_items
+        current_question_data = None
+        current_item_index = 0
+        total_items = 0
+        print("Cleared current question data")
+
         # Use the database manager to set the platform inactive
         success = db_manager.set_platform_active(active=False, game=None)
-        
+
         if success:
             # End any active game
             if game_manager.get_active_game():
                 game_manager.end_game()
                 print("Active game ended")
-            
+
             # Emit socket event to notify clients
             print("Broadcasting platform_stopped event")
-            #socketio.emit('platform_stopped', {'timestamp': str(datetime.now())}, broadcast=True)
             trigger_display_refresh()
-            
+
+            # Redirect all players to waiting room
+            socketio.emit('admin_players_goto_waiting_room', {}, broadcast=True)
+            print("Sent admin_players_goto_waiting_room to redirect players")
+
             # Also emit the admin_refresh_display event specifically for the display page
             socketio.emit('admin_refresh_display', {}, broadcast=True)
-            
+
             print("====== STOP PLATFORM DIRECT API COMPLETED ======\n")
             return jsonify({"success": True})
         else:
@@ -1127,6 +1136,9 @@ def handle_stop_platform():
         # Notify all clients
         trigger_display_refresh()
 
+        # Redirect all players to waiting room
+        emit('admin_players_goto_waiting_room', {}, broadcast=True)
+
 
 # SocketIO events
 @socketio.on('connect')
@@ -1294,7 +1306,7 @@ def handle_connect(auth=None):
                         print(f"Socket.IO: Forwarded {username} to question input")
 
                     # Buzzer question types
-                    elif question_type in ['text', 'image', 'audio', 'video']:
+                    elif question_type in ['text', 'image', 'audio', 'video', 'silhouette', 'fg']:
                         emit('forward_to_buzzer', {
                             'question': current_question_data.get('question_text'),
                             'questionData': current_question_data
@@ -1652,6 +1664,50 @@ def handle_select_question(data):
 
             print(f"Question selected: Category {category_position}, Value {question_value} (MatchMe)")
             print("Players and display forwarded to match_me interface")
+        # Check if this is a puzzle question
+        elif session_question.question.question_type == 'puzzle':
+            # Update game state in database
+            print("Updating game state in database for coop_puzzle...")
+            game_state = GameState.query.first()
+            if not game_state:
+                game_state = GameState(is_active=True, active_game='coop_puzzle')
+                db.session.add(game_state)
+            else:
+                game_state.is_active = True
+                game_state.active_game = 'coop_puzzle'
+                game_state.game_data = '{}'
+            db.session.commit()
+            print("Database updated successfully")
+
+            # Initialize coop_puzzle game
+            print("Initializing coop_puzzle game...")
+            from games.coop_puzzle import CoopPuzzleGame
+
+            # Create game instance with media URL from question
+            puzzle_game = CoopPuzzleGame(
+                socketio,
+                media_url=session_question.question.media_url
+            )
+
+            # Set as active game
+            game_manager.active_game = puzzle_game
+
+            # Initialize the game
+            puzzle_game.initialize()
+
+            # Forward players to coop_puzzle page
+            emit('forward_to_coop_puzzle', {
+                'category': category_position,
+                'value': question_value,
+                'question': session_question.question.question_text,
+                'questionData': question_dict
+            }, broadcast=True)
+
+            # Trigger display redirect
+            emit('game_started', {'game': 'coop_puzzle'}, broadcast=True)
+
+            print(f"Question selected: Category {category_position}, Value {question_value} (Puzzle)")
+            print("Players and display forwarded to coop_puzzle interface")
         # Check if this is a price guesser question
         elif session_question.question.question_type == 'pg':
             # Initialize price_guesser game (registers socket events)

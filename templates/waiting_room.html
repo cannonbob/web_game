@@ -97,6 +97,11 @@
         window.location.href = '/game/match_me';
     });
 
+    socket.on('forward_to_coop_puzzle', function (data) {
+        // Forward players to coop_puzzle interface when a puzzle question is selected
+        window.location.href = '/game/coop_puzzle';
+    });
+
     socket.on('redirect_to_page', function (data) {
         // Redirect players to specified page
         window.location.href = data.url;

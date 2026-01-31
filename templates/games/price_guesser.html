@@ -257,6 +257,12 @@
         window.location.href = '/waiting_room';
     });
 
+    // Handle game ended event (when admin clicks "End Game")
+    socket.on('game_ended', function(data) {
+        console.log('Game ended event received, redirecting to waiting room');
+        window.location.href = '/waiting_room';
+    });
+
     // Helper function to set status message
     function setStatus(message, type) {
         statusMessage.textContent = message;

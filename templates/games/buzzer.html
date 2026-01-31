@@ -186,6 +186,11 @@ socket.on('return_to_game_board', function() {
     window.location.href = '/waiting_room';
 });
 
+socket.on('admin_players_goto_waiting_room', function() {
+    // Admin stopped platform - return to waiting room
+    window.location.href = '/waiting_room';
+});
+
 // Event listeners
 buzzerBtn.addEventListener('click', function() {
     if (buzzerActive && !hasBuzzed) {

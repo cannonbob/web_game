@@ -7,7 +7,7 @@ import random
 
 
 class CoopPuzzleGame(BaseGame):
-    def __init__(self, socketio):
+    def __init__(self, socketio, media_url=None):
         super().__init__(socketio)
         self.game_name = "coop_puzzle"
         self.rows = 5
@@ -15,6 +15,7 @@ class CoopPuzzleGame(BaseGame):
         self.teams = {}  # {team_id: [usernames]}
         self.player_states = {}  # {username: {piece_id: {x, y, isLocked}}}
         self.current_image = None  # Path to the current puzzle image
+        self.media_url = media_url  # Media URL from question (if question-based)
 
         # Testing mode: Set to True to put all players in one team
         self.test_mode_single_team = False
@@ -52,8 +53,16 @@ class CoopPuzzleGame(BaseGame):
         # Assign teams based on player count
         self.assign_teams(users)
 
-        # Select a random puzzle image for this game session
-        self.select_random_image()
+        # Use media_url from question if provided, otherwise select random image
+        if self.media_url:
+            # Ensure path starts with / for absolute URL resolution
+            if not self.media_url.startswith('/'):
+                self.current_image = '/' + self.media_url
+            else:
+                self.current_image = self.media_url
+            print(f"CoopPuzzle: Using question media_url: {self.current_image}")
+        else:
+            self.select_random_image()
 
         # Initialize game state
         self.update_game_state({

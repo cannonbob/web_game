@@ -1,5 +1,111 @@
-<div class="game-container">
-  <div id="movie-display" class="font-jurassic"></div>
-  <p id="status">Scanning frequencies...</p>
-  <button onclick="resetGame()">New Sequence</button>
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  :root {
+    --parchment: #f2e8c9;
+    --ink: #3e2723;
+  }
+
+  body { 
+    background-color: #1a1a1a; 
+    display: flex; 
+    justify-content: center; 
+    padding-top: 50px;
+    font-family: 'Georgia', serif;
+  }
+
+  /* This is your "Map" container */
+  .kingdom-map {
+    position: relative;
+    width: 900px;
+    height: 600px;
+    /* In a real project, replace the gradient with: background-image: url('your-map.jpg'); */
+    background: 
+        radial-gradient(circle at 20% 30%, #a8e063 0%, #56ab2f 40%), /* The Forest */
+        radial-gradient(circle at 80% 20%, #e0e0e0 0%, #757575 30%), /* The Tundra */
+        radial-gradient(circle at 50% 80%, #ff9966 0%, #ff5e62 40%), /* The Volcano */
+        var(--parchment);
+    background-size: cover;
+    border: 15px solid #5d4037;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 0 100px rgba(0,0,0,0.2);
+    border-radius: 5px;
+  }
+
+  /* The Region Labels */
+  .region-name {
+    position: absolute;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: rgba(62, 39, 35, 0.7);
+    pointer-events: none;
+    text-shadow: 1px 1px 0px rgba(255,255,255,0.3);
+  }
+
+  /* The Quest Markers (Your Questions) */
+  .marker {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    background: #fff;
+    border: 3px solid var(--ink);
+    border-radius: 50% 50% 50% 0; /* Creates a "pin" shape */
+    transform: rotate(-45deg);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+  }
+
+  /* The number inside the pin */
+  .marker span {
+    transform: rotate(45deg); /* Counter-rotate the text */
+    font-weight: bold;
+    font-size: 14px;
+    color: var(--ink);
+  }
+
+  .marker:hover {
+    transform: rotate(-45deg) scale(1.2) translateY(-10px);
+    background: #ffd700;
+    box-shadow: 0 15px 20px rgba(0,0,0,0.4);
+  }
+
+  /* Visual "Shadow" under the pin */
+  .marker::after {
+    content: '';
+    position: absolute;
+    width: 10px; height: 4px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 50%;
+    bottom: -15px; left: -5px;
+    transform: rotate(45deg);
+  }
+
+</style>
+</head>
+<body>
+
+<div class="kingdom-map">
+  
+  <div class="region-name" style="top: 15%; left: 15%;">The Verdant Wilds</div>
+  <div class="region-name" style="top: 10%; left: 70%;">Frozen Reach</div>
+  <div class="region-name" style="top: 85%; left: 45%;">The Ember Peaks</div>
+
+  <div class="marker" style="top: 25%; left: 10%;" data-q="1"><span>100</span></div>
+  <div class="marker" style="top: 40%; left: 22%;" data-q="2"><span>200</span></div>
+  <div class="marker" style="top: 20%; left: 30%;" data-q="3"><span>300</span></div>
+
+  <div class="marker" style="top: 15%; left: 80%;" data-q="4"><span>100</span></div>
+  <div class="marker" style="top: 35%; left: 75%;" data-q="5"><span>400</span></div>
+
+  <div class="marker" style="top: 70%; left: 50%;" data-q="6"><span>200</span></div>
+  <div class="marker" style="top: 80%; left: 65%;" data-q="7"><span>500</span></div>
+
 </div>
+
+</body>
+</html>

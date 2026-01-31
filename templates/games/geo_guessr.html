@@ -126,7 +126,11 @@
         console.log('Game ended event received, redirecting to waiting room');
         window.location.href = '/waiting_room';
     });
-    
+
+    socket.on('admin_players_goto_waiting_room', function() {
+        window.location.href = '/waiting_room';
+    });
+
     // Initialize map
     function initializeMap() {
         // Create main map
