@@ -20,15 +20,6 @@
         padding: 2rem 2rem;
     }
 
-    .question-display {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #333;
-        text-align: center;
-        margin-bottom: 1.5rem;
-        min-height: 4rem;
-    }
-
     .answer-input-group {
         max-width: 600px;
         margin: 0 auto;
@@ -136,10 +127,6 @@
         <h2 class="h4 mb-0">Question Input</h2>
     </div>
     <div class="input-card-body">
-        <div class="question-display" id="question-text">
-            Waiting for question...
-        </div>
-
         <div class="answer-input-group" id="input-form" style="display: none;">
             <input
                 type="text"
@@ -169,7 +156,6 @@
 const socket = io();
 
 // DOM elements
-const questionText = document.getElementById('question-text');
 const inputForm = document.getElementById('input-form');
 const answerInput = document.getElementById('answer-input');
 const submitBtn = document.getElementById('submit-btn');
@@ -219,9 +205,6 @@ socket.on('question_selected', function(data) {
 function handleInputQuestion(data) {
     currentQuestion = data.questionData;
     hasSubmitted = false;
-
-    // Show question
-    questionText.textContent = data.question;
 
     // Show input form
     inputForm.style.display = 'block';
@@ -299,7 +282,6 @@ socket.on('input_question_results', function(data) {
 socket.on('reset_input', function() {
     currentQuestion = null;
     hasSubmitted = false;
-    questionText.textContent = 'Waiting for next question...';
     inputForm.style.display = 'none';
     resultsDisplay.classList.remove('show');
     setStatus('', '');
