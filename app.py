@@ -1410,6 +1410,9 @@ def handle_end_game():
             # Force display refresh to return to game board/waiting room
             trigger_display_refresh()
 
+            # Redirect all players to waiting room
+            emit('admin_players_goto_waiting_room', {}, broadcast=True)
+
             print("Game ended successfully")
         else:
             print("Failed to end game")
@@ -1735,6 +1738,17 @@ def handle_select_question(data):
             print("Display forwarded to price guesser interface")
         # Check if this is a This or That question
         elif session_question.question.question_type == 'tt':
+            # Emit question_selected for admin panel and game board display
+            emit('question_selected', {
+                'category': category_position,
+                'value': question_value,
+                'question': session_question.question.question_text,
+                'answer': answer_to_display,
+                'questionData': question_dict,
+                'currentItemIndex': current_item_index,
+                'totalItems': total_items
+            }, broadcast=True)
+
             # Initialize This or That (registers socket events)
             print("Initializing This or That...")
             game_manager.start_game('tt')
@@ -2279,22 +2293,26 @@ def handle_reveal_top_5(data):
             # Update is_correct in database
             submission.is_correct = is_correct
 
-        # Add username to each player result
+        # Add username and calculate correct_count for each player
         for user_id, result in player_results.items():
             user = User.query.filter_by(id=user_id).first()
             if user:
                 result['username'] = user.username
+                result['correct_count'] = sum(1 for g in result['guesses'] if g['is_correct'])
+                result['points_earned'] = 0
 
-                # Calculate score for this player
-                correct_count = sum(1 for g in result['guesses'] if g['is_correct'])
+        # Find the highest correct_count
+        max_correct = max((r.get('correct_count', 0) for r in player_results.values()), default=0)
 
-                # Award points (1 point per correct answer)
-                if correct_count > 0:
-                    user.overall_score += correct_count
-                    result['points_earned'] = correct_count
-                    result['new_score'] = user.overall_score
-                else:
-                    result['points_earned'] = 0
+        # Award 1 point only to player(s) with the highest correct_count
+        if max_correct > 0:
+            for user_id, result in player_results.items():
+                if result.get('correct_count', 0) == max_correct:
+                    user = User.query.filter_by(id=user_id).first()
+                    if user:
+                        user.overall_score += 1
+                        result['points_earned'] = 1
+                        result['new_score'] = user.overall_score
 
         db.session.commit()
 
