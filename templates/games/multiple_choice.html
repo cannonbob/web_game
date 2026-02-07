@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+
+{% block title %}Multiple Choice - Game Platform{% endblock %}
+
+{% block header %}{% endblock %}
+
+{% block content %}
+<style>
+    .mc-container {
+        min-height: 70vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .mc-card-body {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        padding: 2rem 2rem;
+    }
+
+    .mc-options-group {
+        max-width: 600px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    .mc-option {
+        font-size: 1.3rem;
+        padding: 1rem 1.5rem;
+        margin-bottom: 0.75rem;
+        border-radius: 8px;
+        border: 2px solid #dee2e6;
+        background-color: #fff;
+        color: #333;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: left;
+        width: 100%;
+        display: block;
+    }
+
+    .mc-option:hover:not(:disabled) {
+        border-color: #007bff;
+        background-color: #f0f7ff;
+    }
+
+    .mc-option.selected {
+        border-color: #007bff;
+        background-color: #f0f7ff;
+        color: #333;
+        font-weight: bold;
+    }
+
+    .mc-option.submitted {
+        border-color: #007bff;
+        background-color: #007bff;
+        color: white;
+        font-weight: bold;
+    }
+
+    .mc-option:disabled {
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+
+    .submit-btn {
+        font-size: 1.5rem;
+        font-weight: bold;
+        padding: 1rem 3rem;
+        margin-top: 1.5rem;
+        border-radius: 8px;
+        background-color: #28a745;
+        border: none;
+        color: white;
+        transition: all 0.3s ease;
+    }
+
+    .submit-btn:hover:not(:disabled) {
+        background-color: #218838;
+        transform: scale(1.05);
+    }
+
+    .submit-btn:disabled {
+        background-color: #6c757d;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+    .status-message {
+        text-align: center;
+        font-size: 1.2rem;
+        margin-top: 1.5rem;
+        min-height: 2rem;
+    }
+
+    .status-message.success {
+        color: #28a745;
+        font-weight: bold;
+    }
+
+    .status-message.error {
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    .status-message.info {
+        color: #17a2b8;
+    }
+
+    .results-display {
+        display: none;
+        max-width: 800px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .results-display.show {
+        display: block;
+    }
+
+    .result-item {
+        padding: 0.75rem;
+        margin: 0.5rem 0;
+        border-radius: 4px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .result-item.correct {
+        background-color: #d4edda;
+        border: 1px solid #28a745;
+    }
+
+    .result-item.incorrect {
+        background-color: #f8d7da;
+        border: 1px solid #dc3545;
+    }
+</style>
+
+<div class="card shadow mc-container">
+    <div class="card-header">
+        <h2 class="h4 mb-0">Multiple Choice</h2>
+    </div>
+    <div class="mc-card-body">
+        <div class="mc-options-group" id="mc-form" style="display: none;">
+            <div id="mc-options"></div>
+            <button id="submit-btn" class="btn submit-btn w-100" disabled>
+                Submit Answer
+            </button>
+        </div>
+
+        <div class="status-message" id="status-message"></div>
+
+        <div class="results-display" id="results-display">
+            <h3 class="text-center mb-3">Results</h3>
+            <div id="results-list"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const socket = io();
+
+// DOM elements
+const mcForm = document.getElementById('mc-form');
+const mcOptions = document.getElementById('mc-options');
+const submitBtn = document.getElementById('submit-btn');
+const statusMessage = document.getElementById('status-message');
+const resultsDisplay = document.getElementById('results-display');
+const resultsList = document.getElementById('results-list');
+
+// Game variables
+let currentQuestion = null;
+let selectedItemId = null;
+let hasSubmitted = false;
+
+socket.on('connect', function() {
+    console.log('Connected to Multiple Choice');
+    setStatus('Connected. Ready for questions...', 'info');
+    socket.emit('request_mc_question');
+});
+
+socket.on('forward_to_mc', function(data) {
+    console.log('Forwarded to multiple choice:', data);
+    handleMCQuestion(data);
+});
+
+socket.on('question_selected', function(data) {
+    if (!data.questionData || data.questionData.question_type !== 'mc') {
+        return;
+    }
+    handleMCQuestion(data);
+});
+
+function handleMCQuestion(data) {
+    currentQuestion = data.questionData;
+    selectedItemId = null;
+    hasSubmitted = false;
+
+    // Build option buttons from question items
+    mcOptions.innerHTML = '';
+    const items = currentQuestion.items || [];
+    items.forEach(function(item) {
+        const btn = document.createElement('button');
+        btn.className = 'mc-option';
+        btn.textContent = item.item_text;
+        btn.dataset.itemId = item.id;
+        btn.addEventListener('click', function() {
+            selectOption(item.id, btn);
+        });
+        mcOptions.appendChild(btn);
+    });
+
+    // Show form, disable submit until selection
+    mcForm.style.display = 'block';
+    submitBtn.disabled = true;
+
+    // Hide results
+    resultsDisplay.classList.remove('show');
+    setStatus('Select an answer and submit!', 'info');
+}
+
+function selectOption(itemId, btnElement) {
+    if (hasSubmitted) return;
+
+    selectedItemId = itemId;
+
+    // Update visual selection
+    document.querySelectorAll('.mc-option').forEach(function(btn) {
+        btn.classList.remove('selected');
+    });
+    btnElement.classList.add('selected');
+
+    // Enable submit
+    submitBtn.disabled = false;
+}
+
+submitBtn.addEventListener('click', function() {
+    if (!currentQuestion || hasSubmitted || selectedItemId === null) return;
+
+    socket.emit('submit_mc_answer', {
+        question_id: currentQuestion.id,
+        item_id: selectedItemId
+    });
+
+    hasSubmitted = true;
+    submitBtn.disabled = true;
+    document.querySelectorAll('.mc-option').forEach(function(btn) {
+        btn.disabled = true;
+        if (btn.classList.contains('selected')) {
+            btn.classList.remove('selected');
+            btn.classList.add('submitted');
+        }
+    });
+    setStatus('Answer submitted! Waiting for other players...', 'success');
+});
+
+socket.on('answer_submitted', function(data) {
+    if (data.success) {
+        setStatus('Your answer has been recorded!', 'success');
+    } else {
+        setStatus(data.message || 'Error submitting answer', 'error');
+        hasSubmitted = false;
+        submitBtn.disabled = selectedItemId === null;
+        document.querySelectorAll('.mc-option').forEach(function(btn) {
+            btn.disabled = false;
+        });
+    }
+});
+
+socket.on('input_question_results', function(data) {
+    mcForm.style.display = 'none';
+    setStatus('', '');
+    displayResults(data);
+});
+
+socket.on('reset_input', function() {
+    currentQuestion = null;
+    selectedItemId = null;
+    hasSubmitted = false;
+    mcForm.style.display = 'none';
+    resultsDisplay.classList.remove('show');
+    setStatus('', '');
+});
+
+socket.on('return_to_game_board', function() {
+    window.location.href = '/waiting_room';
+});
+
+socket.on('admin_players_goto_waiting_room', function() {
+    window.location.href = '/waiting_room';
+});
+
+function setStatus(message, type) {
+    statusMessage.textContent = message;
+    statusMessage.className = 'status-message ' + type;
+}
+
+function displayResults(data) {
+    resultsList.innerHTML = '';
+
+    // Find the correct answer text from the question items
+    let correctAnswerText = '';
+    if (data.correct_item_id && currentQuestion && currentQuestion.items) {
+        const correctItem = currentQuestion.items.find(i => i.id === data.correct_item_id);
+        if (correctItem) correctAnswerText = correctItem.item_text;
+    }
+    if (!correctAnswerText && data.expected_answers && data.expected_answers.length > 0) {
+        correctAnswerText = data.expected_answers[0];
+    }
+
+    let html = `<div class="text-center mb-3">
+        <strong>Correct Answer:</strong> ${correctAnswerText}
+    </div>`;
+
+    data.user_results.forEach(function(result) {
+        const playerName = result.username || 'Player ' + result.user_id;
+        const className = result.is_correct ? 'correct' : 'incorrect';
+        const icon = result.is_correct ? '\u2713' : '\u2717';
+
+        html += `<div class="result-item ${className}">
+            <span>${icon} ${playerName}: ${result.answer_raw}</span>
+        </div>`;
+    });
+
+    resultsList.innerHTML = html;
+    resultsDisplay.classList.add('show');
+}
+</script>
+{% endblock %}

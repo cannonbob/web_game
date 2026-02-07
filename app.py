@@ -184,6 +184,12 @@ def validate_game_access(expected_game):
                 return redirect(url_for('game_top_5'))
             return None
 
+        # Multiple choice check
+        if question_type == 'mc':
+            if expected_game != 'multiple_choice':
+                return redirect(url_for('game_multiple_choice'))
+            return None
+
         # Regular input question check
         if current_question_data.get('input_expected'):
             if expected_game != 'question_input':
@@ -395,6 +401,18 @@ def game_question_input():
         return validation_result
 
     return render_template('games/question_input.html')
+
+@app.route('/game/multiple_choice')
+@login_required
+def game_multiple_choice():
+    if session['username'] == 'admin':
+        return redirect(url_for('admin_panel'))
+
+    validation_result = validate_game_access('multiple_choice')
+    if validation_result:
+        return validation_result
+
+    return render_template('games/multiple_choice.html')
 
 @app.route('/game/coop_puzzle')
 @login_required
@@ -1297,6 +1315,14 @@ def handle_connect(auth=None):
                         })
                         print(f"Socket.IO: Forwarded {username} to Top 5 with {len(previous_guesses)} previous guesses")
 
+                    # Multiple choice question
+                    elif question_type == 'mc':
+                        emit('forward_to_mc', {
+                            'question': current_question_data.get('question_text'),
+                            'questionData': current_question_data
+                        })
+                        print(f"Socket.IO: Forwarded {username} to multiple choice")
+
                     # Regular input question
                     elif current_question_data.get('input_expected'):
                         emit('forward_to_input', {
@@ -1764,6 +1790,27 @@ def handle_select_question(data):
             # Game is initialized, waiting for admin to click "Start Game"
             print(f"Question selected: Category {category_position}, Value {question_value} (This or That)")
             print("Players forwarded to This or That interface, waiting for admin to start")
+        # Check if this is a multiple choice question
+        elif session_question.question.question_type == 'mc':
+            emit('question_selected', {
+                'category': category_position,
+                'value': question_value,
+                'question': session_question.question.question_text,
+                'answer': answer_to_display,
+                'questionData': question_dict,
+                'currentItemIndex': current_item_index,
+                'totalItems': total_items
+            }, broadcast=True)
+
+            emit('forward_to_mc', {
+                'category': category_position,
+                'value': question_value,
+                'question': session_question.question.question_text,
+                'questionData': question_dict
+            }, broadcast=True)
+
+            print(f"Question selected: Category {category_position}, Value {question_value} (Multiple Choice)")
+            print("Players forwarded to multiple choice interface")
         # Check if this question expects input from players
         elif session_question.question.input_expected:
             print(f"DEBUG: Checking input question routing:")
@@ -1928,6 +1975,97 @@ def handle_request_input_question():
             'questionData': current_question_data
         })
         print(f"Sent current input question to {session['username']}")
+
+
+@socketio.on('request_mc_question')
+def handle_request_mc_question():
+    """Send current MC question to a player who just connected"""
+    global current_question_data
+
+    if 'username' not in session or session['username'] == 'admin':
+        return
+
+    if current_question_data and current_question_data.get('question_type') == 'mc':
+        emit('forward_to_mc', {
+            'question': current_question_data.get('question_text'),
+            'questionData': current_question_data
+        })
+        print(f"Sent current MC question to {session['username']}")
+
+
+@socketio.on('submit_mc_answer')
+def handle_submit_mc_answer(data):
+    """Handle player answer submission for multiple choice questions"""
+    from models.game import AnswerUser, Question, AnswerExpected, QuestionItem
+
+    if 'username' not in session or session['username'] == 'admin':
+        emit('answer_submitted', {'success': False, 'message': 'Invalid user'})
+        return
+
+    try:
+        question_id = int(data['question_id'])
+        submitted_item_id = int(data['item_id'])
+
+        # Get user
+        user = User.query.filter_by(username=session['username']).first()
+        if not user:
+            emit('answer_submitted', {'success': False, 'message': 'User not found'})
+            return
+
+        # Get question
+        question = Question.query.filter_by(id=question_id).first()
+        if not question or question.question_type != 'mc':
+            emit('answer_submitted', {'success': False, 'message': 'Question not found'})
+            return
+
+        # Check if player already submitted for this question
+        existing_answer = AnswerUser.query.filter_by(
+            user_id=user.id,
+            question_id=question_id
+        ).first()
+
+        if existing_answer:
+            emit('answer_submitted', {'success': False, 'message': 'You have already answered this question!'})
+            return
+
+        # Look up the selected option to get its text
+        selected_item = QuestionItem.query.filter_by(id=submitted_item_id, question_id=question_id).first()
+        if not selected_item:
+            emit('answer_submitted', {'success': False, 'message': 'Invalid option selected'})
+            return
+
+        # Check correctness by comparing item_id against answers_expected
+        expected = AnswerExpected.query.filter_by(question_id=question_id).first()
+        is_correct = expected is not None and expected.item_id == submitted_item_id
+
+        # Store answer
+        new_answer = AnswerUser(
+            user_id=user.id,
+            question_id=question_id,
+            round=1,
+            answer_raw=selected_item.item_text,
+            answer_normalized=selected_item.item_text.lower().strip(),
+            is_correct=is_correct
+        )
+        db.session.add(new_answer)
+        db.session.commit()
+
+        print(f"MC answer submitted by {user.username}: {selected_item.item_text} (item_id={submitted_item_id}) - Correct: {is_correct}")
+
+        # Notify admin of new submission (no correctness info)
+        total_submissions = AnswerUser.query.filter_by(question_id=question_id).count()
+        emit('input_answer_received', {
+            'question_id': question_id,
+            'username': user.username,
+            'total_submissions': total_submissions
+        }, broadcast=True, include_self=False)
+
+        # Confirm submission to player without revealing correctness
+        emit('answer_submitted', {'success': True, 'message': 'Answer recorded!'})
+
+    except Exception as e:
+        print(f"Error submitting MC answer: {e}")
+        emit('answer_submitted', {'success': False, 'message': 'Error submitting answer'})
 
 
 @socketio.on('submit_answer')
@@ -2808,15 +2946,27 @@ def handle_buzzer_reveal_answer():
         answer_text = ""
 
         if current_question_data:
-            # Try expected_answers first
-            if current_question_data.get('expected_answers'):
-                answers = current_question_data.get('expected_answers', [])
-                if answers:
-                    answer_texts = [ans.get('answer_raw', '') for ans in answers if ans.get('answer_raw')]
-                    answer_text = ' / '.join(answer_texts)
-            # Fallback to simple answer field
-            if not answer_text and current_question_data.get('answer'):
-                answer_text = current_question_data.get('answer', '')
+            # For MC questions, resolve answer from item_id
+            if current_question_data.get('question_type') == 'mc':
+                expected_answers = current_question_data.get('expected_answers', [])
+                items = current_question_data.get('items', [])
+                for ans in expected_answers:
+                    item_id = ans.get('item_id')
+                    if item_id:
+                        matched_item = next((item for item in items if item.get('id') == item_id), None)
+                        if matched_item:
+                            answer_text = matched_item.get('item_text', '')
+                            break
+            else:
+                # Try expected_answers first
+                if current_question_data.get('expected_answers'):
+                    answers = current_question_data.get('expected_answers', [])
+                    if answers:
+                        answer_texts = [ans.get('answer_raw', '') for ans in answers if ans.get('answer_raw')]
+                        answer_text = ' / '.join(answer_texts)
+                # Fallback to simple answer field
+                if not answer_text and current_question_data.get('answer'):
+                    answer_text = current_question_data.get('answer', '')
 
         print(f"Revealing answer: {answer_text}")
         emit('buzzer_reveal_answer', {

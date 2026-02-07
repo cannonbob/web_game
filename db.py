@@ -51,3 +51,22 @@ def run_migrations():
     except Exception as e:
         print(f"Migration warning (active_session_id): {e}")
         db.session.rollback()
+
+    # Migration: Add item_id column to answers_expected table
+    try:
+        result = db.session.execute(text(
+            "SELECT COUNT(*) FROM information_schema.columns "
+            "WHERE table_schema = :db AND table_name = 'answers_expected' AND column_name = 'item_id'"
+        ), {'db': MYSQL_DB})
+        column_exists = result.scalar() > 0
+
+        if not column_exists:
+            db.session.execute(text(
+                "ALTER TABLE answers_expected ADD COLUMN item_id INT NULL, "
+                "ADD CONSTRAINT fk_answers_expected_item FOREIGN KEY (item_id) REFERENCES question_items(id)"
+            ))
+            db.session.commit()
+            print("Migration: Added item_id column to answers_expected table")
+    except Exception as e:
+        print(f"Migration warning (item_id): {e}")
+        db.session.rollback()

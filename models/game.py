@@ -289,6 +289,7 @@ class AnswerExpected(db.Model):
     answer_normalized = db.Column(db.String(255), nullable=False)  # Pre-normalized answer
     is_primary = db.Column(db.Boolean, default=True)  # Primary answer vs alternative
     rank = db.Column(db.Integer, nullable=True)  # Rank for Top 5 auto-complete questions (1-5)
+    item_id = db.Column(db.Integer, db.ForeignKey('question_items.id'), nullable=True)  # FK to correct option for mc questions
 
     def __repr__(self):
         return f'<AnswerExpected {self.id}: Question {self.question_id}, Type {self.input_type}>'
@@ -302,7 +303,8 @@ class AnswerExpected(db.Model):
             'answer_raw': self.answer_raw,
             'answer_normalized': self.answer_normalized,
             'is_primary': self.is_primary,
-            'rank': self.rank
+            'rank': self.rank,
+            'item_id': self.item_id
         }
 
 

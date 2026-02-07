@@ -303,7 +303,7 @@ class AnswerHandler:
 
         # Get question
         question = db_session.query(Question).filter_by(id=question_id).first()
-        if not question or not question.input_expected:
+        if not question or (not question.input_expected and question.question_type != 'mc'):
             return {'error': 'Question not found or does not expect input'}
 
         # Check if this is a movie question
@@ -318,8 +318,11 @@ class AnswerHandler:
         # Get all user answers
         user_answers = db_session.query(AnswerUser).filter_by(question_id=question_id).all()
 
-        # Determine question type from first expected answer
-        input_type = expected_answers[0].input_type
+        # Determine question type
+        if question.question_type == 'mc':
+            input_type = 'mc'
+        else:
+            input_type = expected_answers[0].input_type
 
         results = {
             'question_id': question_id,
@@ -328,7 +331,21 @@ class AnswerHandler:
             'user_results': []
         }
 
-        if input_type == 'guess':
+        if input_type == 'mc':
+            # Multiple choice - is_correct already set at submission time via item_id comparison
+            primary_answer = next((ans for ans in expected_answers if ans.is_primary), expected_answers[0])
+
+            for answer in user_answers:
+                results['user_results'].append({
+                    'user_id': answer.user_id,
+                    'answer_raw': answer.answer_raw,
+                    'is_correct': answer.is_correct
+                })
+
+            results['correct_item_id'] = primary_answer.item_id
+            results['expected_answers'] = [ans.answer_raw for ans in expected_answers]
+
+        elif input_type == 'guess':
             # Number guessing question
             primary_answer = next((ans for ans in expected_answers if ans.is_primary), expected_answers[0])
 

@@ -843,7 +843,7 @@
 
             // Handle multi-item questions
             // multi_item: 0 = cumulative display (add items), 1 = replacement display (replace items)
-            if (questionData && questionData.items && questionData.items.length > 0) {
+            if (questionData && questionData.question_type !== 'mc' && questionData.items && questionData.items.length > 0) {
                 contentHTML += `<div class="question-text-fixed">${question}</div>`;
                 if (questionData.multi_item === 1) {
                     // Replacement: show only current item_order group
@@ -880,8 +880,8 @@
                 contentHTML += '<div id="movie-winners-container"></div>';
             }
 
-            // Add input results container for input questions
-            if (questionData && questionData.input_expected) {
+            // Add input results container for input and MC questions
+            if (questionData && (questionData.input_expected || questionData.question_type === 'mc')) {
                 contentHTML += '<div id="input-results-container"></div>';
             }
 
@@ -1113,8 +1113,8 @@
                 contentHTML += '<div id="movie-winners-container"></div>';
             }
 
-            // Add input results container for input questions
-            if (questionData && questionData.input_expected) {
+            // Add input results container for input and MC questions
+            if (questionData && (questionData.input_expected || questionData.question_type === 'mc')) {
                 contentHTML += '<div id="input-results-container"></div>';
             }
 

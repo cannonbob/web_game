@@ -58,6 +58,11 @@
         window.location.href = '/game/question_input';
     });
 
+    socket.on('forward_to_mc', function (data) {
+        // Forward players to multiple choice interface
+        window.location.href = '/game/multiple_choice';
+    });
+
     socket.on('forward_to_top_5', function (data) {
         // Forward players to Top 5 auto-complete interface
         window.location.href = '/game/top_5';

@@ -1087,6 +1087,35 @@
 
             console.log('Admin: Ordering game active, controls shown');
         }
+        // Check if this is a multiple choice question
+        else if (questionData && questionData.question_type === 'mc') {
+            showGameControls('buzzer');
+
+            // Hide buzzer-specific elements
+            document.getElementById('buzzer-player-info').classList.add('d-none');
+            document.querySelector('.reset-buzzer').classList.add('d-none');
+            document.querySelector('.correct-answer').classList.add('d-none');
+            document.querySelector('.wrong-answer').classList.add('d-none');
+
+            // Hide other game controls
+            document.getElementById('ordering-question-controls').classList.add('d-none');
+            document.getElementById('top-5-controls').classList.add('d-none');
+            document.getElementById('sorting-game-controls').classList.add('d-none');
+
+            // Show input question controls (submission count + close round)
+            document.getElementById('input-question-controls').classList.remove('d-none');
+            document.getElementById('submission-count').textContent = '0 submissions received';
+
+            const closeButton = document.getElementById('close-input-round');
+            if (closeButton) {
+                closeButton.disabled = false;
+                closeButton.innerHTML = '<i class="fas fa-check me-1"></i>Close Round & Show Results';
+            }
+
+            window.currentInputQuestionId = questionData.id;
+
+            console.log('Admin: Multiple choice question active, controls shown');
+        }
         // Check if this is an input question
         else if (questionData && questionData.input_expected) {
             // Check if it's a Top 5 auto-complete question (question_type = 'ac')
@@ -1145,8 +1174,9 @@
             }
 
             // Handle multi-item controls for input questions (like movie screenshots)
+            // Skip for MC questions - their items are answer options, not display items
             console.log('Admin: Checking multi-item controls for input question - totalItems:', totalItems);
-            if (questionData && questionData.items && questionData.items.length > 0 && totalItems > 1) {
+            if (questionData && questionData.question_type !== 'mc' && questionData.items && questionData.items.length > 0 && totalItems > 1) {
                 console.log('Admin: Showing multi-item controls for input question');
                 document.getElementById('multi-item-controls').classList.remove('d-none');
                 updateItemCounter(currentItemIndex, totalItems);
@@ -1611,6 +1641,11 @@
         // Check for Font Guesser questions
         if (questionData.question_type === 'fg') {
             return 'Font Guesser';
+        }
+
+        // Check for multiple choice questions
+        if (questionData.question_type === 'mc') {
+            return 'input';
         }
 
         // Check for input questions (including ordering games)
